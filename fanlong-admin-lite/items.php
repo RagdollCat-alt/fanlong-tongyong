@@ -318,7 +318,7 @@ require_once 'header.php';
             </option>
             <?php endforeach; ?>
           </select>
-          <div class="form-text"><strong>equip</strong>：玩家「换上」穿戴，stats 持续生效，货币键首穿永久发放；<strong>consumable</strong>：玩家「使用」触发 effect 效果</div>
+          <div class="form-text"><strong>装备</strong>：玩家「换上」穿戴，属性加成持续生效，货币奖励首穿永久发放；<strong>消耗品</strong>：玩家「使用」触发特殊效果</div>
         </div>
         <div class="col-md-2">
           <label class="form-label fw-semibold small">子类型</label>
@@ -328,7 +328,7 @@ require_once 'header.php';
             <option value="optional_pack" <?php echo ($edit_item['sub_type']??'')==='optional_pack'?'selected':''; ?>>自选礼包</option>
             <option value="stat_boost" <?php echo ($edit_item['sub_type']??'')==='stat_boost'?'selected':''; ?>>属性提升</option>
           </select>
-          <div class="form-text"><strong>normal</strong>：直接触发 effect；<strong>rename_card</strong>：「使用 卡名 新名字」改名并同步群名片；<strong>optional_pack</strong>：「使用 物品名 属性名」自选加点，配合「扩展参数」字段；<strong>stat_boost</strong>：预留，暂无特殊逻辑</div>
+          <div class="form-text"><strong>普通</strong>：使用后直接触发特殊效果；<strong>改名卡</strong>：「使用 卡名 新名字」改名并同步群名片；<strong>自选礼包</strong>：「使用 物品名 属性名」自选加点，配合「扩展参数」字段；<strong>属性提升</strong>（预留）：暂无特殊逻辑</div>
         </div>
         <div class="col-md-2" id="slotWrap">
           <label class="form-label fw-semibold small">装备槽位</label>
@@ -339,7 +339,7 @@ require_once 'header.php';
             </option>
             <?php endforeach; ?>
           </select>
-          <div class="form-text">hair/top/bottom/head/neck 独占槽各限 1 件；accessory 最多 4 件（acc1-4），可「换上 物品名 acc2」指定位置；interior 最多 2 件（inner1-2）</div>
+          <div class="form-text"><?php echo tSlot('hair','发型').'/'.tSlot('top','上衣').'/'.tSlot('bottom','下装').'/'.tSlot('head','头饰').'/'.tSlot('neck','颈饰'); ?> 独占槽各限 1 件；<?php echo tSlot('accessory','配饰'); ?>最多 4 件，可「换上 物品名 acc2」指定具体位置；<?php echo tSlot('interior','内饰'); ?>最多 2 件</div>
         </div>
         <div class="col-md-2">
           <label class="form-label fw-semibold small">是否在售</label>
@@ -393,8 +393,8 @@ require_once 'header.php';
           <textarea class="form-control font-monospace" name="stats" rows="3"
                     placeholder='{"stat_face":5,"stat_charm":3}'><?php echo htmlspecialchars($edit_item['stats']??'{}'); ?></textarea>
           <div class="form-text">
-            <strong>仅装备类有效。</strong>stat_* 键：穿戴期间持续加成，卸下后消失；货币键（如 <code>{"<?php echo t('term_yuCoin','虞元'); ?>":100}</code>）：首次穿戴时一次性永久发放。键名支持英文（stat_face）或当前术语中文名（<?php echo t('stat_face','颜值'); ?>）。<br>
-            可用 stat 键：<?php foreach(['stat_face','stat_charm','stat_intel','stat_biz','stat_talk','stat_body','stat_art','stat_obed'] as $sf): ?><code><?php echo $sf; ?></code>(<?php echo t($sf,$sf); ?>) <?php endforeach; ?>
+            <strong>仅装备有效。</strong>属性键（如 stat_face）：穿戴期间持续加成，卸下后消失；货币键（如 <code>{"<?php echo t('term_yuCoin','虞元'); ?>":100}</code>）：首次穿戴时一次性永久发放。键名可用英文（stat_face）或配置中文名（<?php echo t('stat_face','颜值'); ?>），效果相同。<br>
+            可用属性键：<?php foreach(['stat_face','stat_charm','stat_intel','stat_biz','stat_talk','stat_body','stat_art','stat_obed'] as $sf): ?><code><?php echo $sf; ?></code>(<?php echo t($sf,$sf); ?>) <?php endforeach; ?>
           </div>
         </div>
         <div class="col-md-6">
@@ -404,7 +404,7 @@ require_once 'header.php';
           <div class="form-text">
             仅对<strong>消耗品</strong>生效，装备类填写无效。<br>
             · 普通消耗品：<code>{"属性名": 数值}</code> — 使用后即时增加对应属性或货币<br>
-            · 自选礼包（sub_type=optional_pack）：<code>{"amount": 数值}</code> — 每次使用增加的点数，配合「可选参数」字段使用
+            · 子类型选「自选礼包」时：<code>{"amount": 数值}</code> — 每次使用增加的加点数，配合「扩展参数」字段使用
           </div>
         </div>
       </div>
@@ -415,19 +415,19 @@ require_once 'header.php';
           <label class="form-label fw-semibold small">购买条件 <span class="text-muted">(JSON，选填)</span></label>
           <textarea class="form-control font-monospace" name="condition" rows="2"
                     placeholder="{}"><?php echo htmlspecialchars($edit_item['condition']??''); ?></textarea>
-          <div class="form-text">JSON 格式，满足条件才可购买。如 <code>{"reputation":100}</code> 需名誉≥100，<code>{"stat_face":50}</code> 需颜值≥50，支持任意属性字段</div>
+          <div class="form-text">JSON 格式，满足条件的玩家才可购买。如 <code>{"reputation":100}</code> 需<?php echo t('term_reputation','名誉'); ?>≥100；<code>{"stat_face":50}</code> 需<?php echo t('stat_face','颜值'); ?>≥50</div>
         </div>
         <div class="col-md-4">
           <label class="form-label fw-semibold small">合成配方 <span class="text-muted">(JSON)</span></label>
           <textarea class="form-control font-monospace" name="compound_recipe" rows="2"
                     placeholder="{}"><?php echo htmlspecialchars($edit_item['compound_recipe']??'{}'); ?></textarea>
-          <div class="form-text">玩家「兑换 物品名」触发。如 <code>{"原材料A":2,"yuCoin":100}</code> 消耗 2 个原材料A 和 100 虞元；材料可为物品名或货币英文键</div>
+          <div class="form-text">玩家「兑换 物品名」触发。如 <code>{"原材料A":2,"yuCoin":100}</code> 消耗 2 个原材料A 和 100 <?php echo t('term_yuCoin','虞元'); ?>；材料可填物品名称或货币代码（<?php echo t('term_yuCoin','虞元'); ?> 用 yuCoin，<?php echo t('term_reputation','名誉'); ?> 用 reputation）</div>
         </div>
         <div class="col-md-4">
           <label class="form-label fw-semibold small">扩展参数 <span class="text-muted">(JSON)</span></label>
           <textarea class="form-control font-monospace" name="param" rows="2"
                     placeholder="{}"><?php echo htmlspecialchars($edit_item['param']??'{}'); ?></textarea>
-          <div class="form-text">自选礼包（optional_pack）专用，数组格式，如 <code>["颜值","魅力","智谋"]</code>；玩家使用时从中选一属性加点（点数由 effect.amount 决定）</div>
+          <div class="form-text">子类型选「自选礼包」时专用，数组格式，如 <code>["<?php echo t('stat_face','颜值'); ?>","<?php echo t('stat_charm','魅力'); ?>","<?php echo t('stat_intel','智谋'); ?>"]</code>；玩家使用时从中选一属性加点，加点数量由「特殊效果」的 amount 值决定</div>
         </div>
       </div>
 
