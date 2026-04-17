@@ -273,6 +273,26 @@ function tSlot($key, $fallback = '') {
 }
 
 // ====================================================================
+// 可见属性字段（尊重 game_terms.is_hidden 配置）
+// ====================================================================
+const ALL_STAT_FIELDS = ['stat_face','stat_charm','stat_intel','stat_biz','stat_talk','stat_body','stat_art','stat_obed'];
+
+function getVisibleStatFields() {
+    static $cache = null;
+    if ($cache !== null) return $cache;
+    try {
+        $rows = getDB()->query(
+            "SELECT key FROM game_terms WHERE key LIKE 'stat_%' AND is_hidden=1"
+        )->fetchAll(PDO::FETCH_COLUMN, 0);
+        $visible = array_values(array_intersect(ALL_STAT_FIELDS, $rows));
+        $cache = !empty($visible) ? $visible : ALL_STAT_FIELDS;
+    } catch (Exception $e) {
+        $cache = ALL_STAT_FIELDS;
+    }
+    return $cache;
+}
+
+// ====================================================================
 // 物品类型标准映射（数据库中无 game_terms 条目时的回退）
 // ====================================================================
 function getItemTypeMap() {

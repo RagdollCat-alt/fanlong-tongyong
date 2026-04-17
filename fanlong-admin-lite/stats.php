@@ -8,35 +8,41 @@ $action = $_GET['action'] ?? 'list';
 $uid    = $_GET['user_id'] ?? '';
 $msg = ''; $msg_type = '';
 
-$stat_fields = ['stat_face','stat_charm','stat_intel','stat_biz','stat_talk','stat_body','stat_art','stat_obed'];
+$stat_fields = getVisibleStatFields(); // 只取对玩家可见的属性字段
+$first_stat  = $stat_fields[0] ?? 'stat_face'; // 表格默认排序列
 
 // ===== POST =====
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     requirePermission('stats', 'edit');
     $user_id = $_POST['user_id'] ?? '';
-    $vals = [];
-    foreach ($stat_fields as $f) $vals[$f] = max(0, intval($_POST[$f] ?? 0));
+    // 表单只提交可见字段；INSERT 时隐藏字段默认为 0，保证记录完整
+    $vals_visible = [];
+    foreach ($stat_fields as $f) $vals_visible[$f] = max(0, intval($_POST[$f] ?? 0));
+    $vals_all = array_fill_keys(ALL_STAT_FIELDS, 0);
+    foreach ($vals_visible as $f => $v) $vals_all[$f] = $v;
 
     try {
         $old = $db->prepare("SELECT * FROM user_stats WHERE user_id=?"); $old->execute([$user_id]); $old=$old->fetch();
         if ($old) {
+            // UPDATE 只改可见字段，隐藏字段保持原值不变
             $sets = implode(',', array_map(fn($f)=>"$f=?", $stat_fields));
             $db->prepare("UPDATE user_stats SET $sets WHERE user_id=?")
-               ->execute([...array_values($vals), $user_id]);
+               ->execute([...array_values($vals_visible), $user_id]);
         } else {
-            $cols = implode(',', $stat_fields);
-            $ph   = implode(',', array_fill(0, count($stat_fields), '?'));
+            // INSERT 写全部 8 个字段，隐藏字段填 0
+            $cols = implode(',', ALL_STAT_FIELDS);
+            $ph   = implode(',', array_fill(0, count(ALL_STAT_FIELDS), '?'));
             $db->prepare("INSERT INTO user_stats (user_id,$cols) VALUES (?,$ph)")
-               ->execute([$user_id, ...array_values($vals)]);
+               ->execute([$user_id, ...array_values($vals_all)]);
         }
-        logAction('stats','update',$user_id,$old,$vals);
+        logAction('stats','update',$user_id,$old,$vals_visible);
         setFlash('success','属性已更新');
         header('Location: stats.php'); exit();
     } catch(Exception $e){ $msg='保存失败：'.$e->getMessage(); $msg_type='danger'; }
 }
 
-// 所有属性数据
-$rows = $db->query("SELECT u.id, u.name, s.* FROM users u JOIN user_stats s ON u.id=s.user_id ORDER BY s.stat_face DESC")->fetchAll();
+// 所有属性数据（按第一个可见属性排序）
+$rows = $db->query("SELECT u.id, u.name, s.* FROM users u JOIN user_stats s ON u.id=s.user_id ORDER BY s.$first_stat DESC")->fetchAll();
 // 没有属性记录的用户
 $users_no_stats = $db->query("SELECT u.id, u.name FROM users u WHERE NOT EXISTS (SELECT 1 FROM user_stats s WHERE s.user_id=u.id) ORDER BY u.name")->fetchAll();
 
@@ -134,7 +140,7 @@ require_once 'header.php';
         </tr></thead>
         <tbody>
         <?php foreach($rows as $r):
-          $total=0; foreach($stat_fields as $sf) $total+=intval($r[$sf]??0);
+          $total=0; foreach($stat_fields as $sf) $total+=intval($r[$sf]??0); // 只加可见字段
         ?>
         <tr>
           <td class="ps-4">

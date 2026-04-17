@@ -15,8 +15,10 @@ $stat['admins']      = $db->query("SELECT COUNT(*) FROM admins")->fetchColumn();
 // 最近10个用户
 $recent_users = $db->query("SELECT id, name, created_at FROM users ORDER BY created_at DESC LIMIT 10")->fetchAll();
 
-// 颜值TOP5
-$top_face = $db->query("SELECT u.name, u.id, s.stat_face FROM users u JOIN user_stats s ON u.id=s.user_id ORDER BY s.stat_face DESC LIMIT 5")->fetchAll();
+// 第一个可见属性 TOP5（自动跟随术语配置）
+$_top_stat  = getVisibleStatFields()[0] ?? 'stat_face';
+$top_face   = $db->query("SELECT u.name, u.id, s.$_top_stat AS top_val FROM users u JOIN user_stats s ON u.id=s.user_id ORDER BY s.$_top_stat DESC LIMIT 5")->fetchAll();
+$_top_label = t($_top_stat, $_top_stat);
 
 // 低库存物品
 $low_stock = $db->query("SELECT name, stock_qty, price, currency FROM items WHERE is_selling=1 AND stock_qty != -1 ORDER BY stock_qty ASC LIMIT 8")->fetchAll();
@@ -118,18 +120,18 @@ foreach($cards as $c): ?>
     </div>
   </div>
 
-  <!-- 颜值排行 -->
+  <!-- 第一可见属性排行 -->
   <div class="col-lg-6">
     <div class="card h-100">
       <div class="card-header d-flex justify-content-between align-items-center">
-        <span><i class="fas fa-crown me-2" style="color:oklch(0.80 0.15 83)"></i><?php echo t('stat_face','颜值'); ?> 排行 TOP5</span>
+        <span><i class="fas fa-crown me-2" style="color:oklch(0.80 0.15 83)"></i><?php echo htmlspecialchars($_top_label); ?> 排行 TOP5</span>
         <a href="stats.php" class="btn btn-sm btn-outline-warning">全部</a>
       </div>
       <div class="card-body p-0">
         <div class="table-responsive">
           <table class="table table-hover mb-0">
             <thead><tr>
-              <th class="ps-4" style="width:25%">排名</th><th>角色名</th><th class="pe-4"><?php echo t('stat_face','颜值'); ?></th>
+              <th class="ps-4" style="width:25%">排名</th><th>角色名</th><th class="pe-4"><?php echo htmlspecialchars($_top_label); ?></th>
             </tr></thead>
             <tbody>
             <?php $rank=1; foreach($top_face as $p): ?>
@@ -144,7 +146,7 @@ foreach($cards as $c): ?>
               </td>
               <td><?php echo htmlspecialchars($p['name'] ?? '—'); ?></td>
               <td class="pe-4">
-                <span class="badge bg-primary rounded-pill"><?php echo $p['stat_face']; ?></span>
+                <span class="badge bg-primary rounded-pill"><?php echo intval($p['top_val']); ?></span>
               </td>
             </tr>
             <?php $rank++; endforeach; ?>

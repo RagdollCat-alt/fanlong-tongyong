@@ -424,7 +424,9 @@ def get_stats(user, attr_cn=None):
                     val += ITEM_DB[item_name]["stats"].get(attr_cn, 0)
         return val
     total = 0
-    for k in KEY_MAP["stats"]: total += get_stats(user, Terms.get(k))
+    for k in KEY_MAP["stats"]:
+        if Terms.is_visible(k):
+            total += get_stats(user, Terms.get(k))
     return total
 
 def get_total_reputation(user):
