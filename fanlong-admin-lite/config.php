@@ -140,6 +140,12 @@ function migrateDB() {
         if (!in_array('category', $tcols)) {
             $db->exec("ALTER TABLE game_terms ADD COLUMN category TEXT DEFAULT 'other'");
         }
+        // 根据键名前缀自动修正分类（仅针对仍为 other 的词条，幂等安全）
+        $db->exec("UPDATE game_terms SET category='属性配置' WHERE key LIKE 'stat_%'    AND category='other'");
+        $db->exec("UPDATE game_terms SET category='服饰配置' WHERE key LIKE 'slot_%'    AND category='other'");
+        $db->exec("UPDATE game_terms SET category='档案配置' WHERE key LIKE 'profile_%' AND category='other'");
+        $db->exec("UPDATE game_terms SET category='金钱配置' WHERE key LIKE 'term_%'    AND category='other'");
+        $db->exec("UPDATE game_terms SET category='系统配置' WHERE key LIKE 'config_%'  AND category='other'");
         if (!in_array('is_hidden', $tcols)) {
             // 新增字段，默认 1（与机器人约定一致：is_hidden=1 = 可见，is_hidden=0 = 隐藏）
             $db->exec("ALTER TABLE game_terms ADD COLUMN is_hidden INTEGER DEFAULT 1");
