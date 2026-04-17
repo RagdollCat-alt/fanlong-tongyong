@@ -22,8 +22,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     foreach ($slot_fields as $sf) $slots[$sf] = trim($_POST[$sf] ?? '');
 
     try {
-        $old = $db->prepare("SELECT * FROM user_equip WHERE user_id=?"); $old->execute([$user_id]); $old=$old->fetch();
-        if ($old) {
+        $old_row = $db->prepare("SELECT * FROM user_equip WHERE user_id=?"); $old_row->execute([$user_id]); $old_row=$old_row->fetch();
+        if ($old_row) {
             $sets = implode(',', array_map(fn($f)=>"$f=?", $slot_fields));
             $db->prepare("UPDATE user_equip SET $sets WHERE user_id=?")->execute([...array_values($slots),$user_id]);
         } else {
@@ -31,7 +31,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $ph   = '?,'.implode(',', array_fill(0,count($slot_fields),'?'));
             $db->prepare("INSERT INTO user_equip ($cols) VALUES ($ph)")->execute([$user_id,...array_values($slots)]);
         }
-        logAction('user_equip','update',$user_id,$old,$slots);
+
+        // 对新增装备的槽位，自动在 item_instances 创建未发放记录
+        // 保证机器人首穿货币奖励逻辑能正常触发
+        foreach ($slot_fields as $sf) {
+            $new_item = $slots[$sf];
+            $old_item = $old_row[$sf] ?? '';
+            if ($new_item !== '' && $new_item !== $old_item) {
+                $exists = $db->prepare("SELECT COUNT(*) FROM item_instances WHERE item_name=? AND user_id=?");
+                $exists->execute([$new_item, $user_id]);
+                if ($exists->fetchColumn() == 0) {
+                    $db->prepare("INSERT INTO item_instances (item_name, user_id, currency_given) VALUES (?,?,0)")
+                       ->execute([$new_item, $user_id]);
+                }
+            }
+        }
+
+        logAction('user_equip','update',$user_id,$old_row,$slots);
         setFlash('success','装备已更新');
         header('Location: equip.php'); exit();
     } catch(Exception $e){ $msg='保存失败：'.$e->getMessage(); $msg_type='danger'; }
