@@ -1212,8 +1212,13 @@ def process_message(plugin_event, Proc, is_private=False):
                 DB.execute("UPDATE items SET stock_qty = stock_qty - ? WHERE name = ?", (count, target_thing))
                 target_item['stock_qty'] -= count
 
-            # 🟢 为兑换的道具创建实例记录
-            create_item_instances(sender_id, target_thing, count)
+            # 仅对含货币加成的装备创建首穿实例记录
+            if target_item.get("type") == "equip":
+                item_stats = target_item.get("stats", {})
+                NAME_YU_KEY  = Terms.get("term_yuCoin")
+                NAME_REP_KEY = Terms.get("term_reputation")
+                if any(k in item_stats for k in (NAME_YU_KEY, NAME_REP_KEY, "yuCoin", "reputation")):
+                    create_item_instances(sender_id, target_thing, count)
 
             user["bag"][target_thing] = user["bag"].get(target_thing, 0) + count
             db_save_user(user)

@@ -370,7 +370,11 @@ require_once 'header.php';
           <label class="form-label fw-semibold small">特殊效果 <span class="text-muted">(JSON，机器人读取)</span></label>
           <textarea class="form-control font-monospace" name="effect" rows="3"
                     placeholder="{}"><?php echo htmlspecialchars($edit_item['effect']??'{}'); ?></textarea>
-          <div class="form-text">由机器人代码解析，具体格式参考游戏文档</div>
+          <div class="form-text">
+            仅对<strong>消耗品</strong>生效，装备类填写无效。<br>
+            · 普通消耗品：<code>{"属性名": 数值}</code> — 使用后即时增加对应属性或货币<br>
+            · 自选礼包（sub_type=optional_pack）：<code>{"amount": 数值}</code> — 每次使用增加的点数，配合「可选参数」字段使用
+          </div>
         </div>
       </div>
 
