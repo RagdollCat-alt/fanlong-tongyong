@@ -1,0 +1,12 @@
+{
+    "name": "繁笼RPG",
+    "author": "Universal",
+    "namespace": "fanlong_rpg",
+    "info": "通用RPG系统：档案、经济、物品、装备",
+    "priority": 10000,
+    "svn": 1000,
+    "compatible_svn": 1000,
+    "message_mode": "olivos_string",
+    "support": [ { "sdk": "all", "platform": "all", "model": "all" } ],
+    "menu_config": []
+}

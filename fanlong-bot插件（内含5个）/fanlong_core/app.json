@@ -1,0 +1,11 @@
+{
+    "name": "繁笼核心",
+    "author": "Universal",
+    "namespace": "fanlong_core",
+    "info": "全局配置中心：统一管理管理员与通用设置",
+    "priority": 0,
+    "svn": 1000,
+    "compatible_svn": 1000,
+    "message_mode": "olivos_string",
+    "support": [ { "sdk": "all", "platform": "all", "model": "all" } ]
+}

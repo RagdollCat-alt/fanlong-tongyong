@@ -1,0 +1,12 @@
+{
+    "name": "繁笼戏录",
+    "author": "Universal",
+    "namespace": "fanlong_drama",
+    "info": "通用戏录系统：自动统计戏文/字数",
+    "priority": 10000,
+    "svn": 1000,
+    "compatible_svn": 1000,
+    "message_mode": "olivos_string",
+    "support": [ { "sdk": "all", "platform": "all", "model": "all" } ],
+    "menu_config": []
+}

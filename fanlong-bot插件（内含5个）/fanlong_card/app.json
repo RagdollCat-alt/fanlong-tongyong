@@ -1,0 +1,12 @@
+{
+    "name": "繁笼名片助手",
+    "author": "Universal",
+    "namespace": "fanlong_card",
+    "info": "通用RPG附属：自动同步群名片",
+    "priority": -10,
+    "svn": 1000,
+    "compatible_svn": 1000,
+    "message_mode": "olivos_string",
+    "support": [ { "sdk": "all", "platform": "all", "model": "all" } ],
+    "menu_config": []
+}

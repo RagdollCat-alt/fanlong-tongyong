@@ -1,0 +1,12 @@
+{
+    "name": "繁笼骰子",
+    "author": "Universal",
+    "namespace": "fanlong_dice",
+    "info": "通用骰子系统：属性检定、暗骰、普通骰点",
+    "priority": 1,
+    "svn": 1000,
+    "compatible_svn": 1000,
+    "message_mode": "olivos_string",
+    "support": [ { "sdk": "all", "platform": "all", "model": "all" } ],
+    "menu_config": []
+}
