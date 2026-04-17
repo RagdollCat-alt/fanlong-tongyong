@@ -193,8 +193,12 @@ require_once 'header.php';
             <?php echo empty($it['slot']) ? '<span class="text-muted">—</span>' : '<span class="badge bg-info text-dark">'.htmlspecialchars($slot_options[$it['slot']] ?? tSlot($it['slot'],$it['slot'])).'</span>'; ?>
           </td>
           <td class="text-nowrap">
+            <?php if(floatval($it['price']) < 0): ?>
+            <span class="badge bg-secondary">仅后台分配</span>
+            <?php else: ?>
             <?php echo number_format(floatval($it['price'])); ?>
             <small class="text-muted"><?php echo htmlspecialchars(tAuto($it['currency']??'yuCoin', t('term_yuCoin','货币'))); ?></small>
+            <?php endif; ?>
           </td>
           <td>
             <?php if($stats_str): ?>
@@ -210,13 +214,16 @@ require_once 'header.php';
           </td>
           <td><?php echo $it['max_hold']>0 ? $it['max_hold'].'件' : '<span class="text-muted">无限</span>'; ?></td>
           <td>
-            <?php if($it['is_selling']): ?><span class="badge bg-success">在售</span>
+            <?php if(floatval($it['price']) < 0): ?>
+            <span class="badge bg-dark">后台专用</span>
+            <?php elseif($it['is_selling']): ?><span class="badge bg-success">在售</span>
             <?php else: ?><span class="badge bg-secondary">下架</span><?php endif; ?>
           </td>
           <td class="pe-4">
             <div class="d-flex gap-1 flex-wrap">
               <?php if(can('items','edit')): ?>
               <a href="items.php?action=edit&name=<?php echo urlencode($it['name']); ?>" class="btn btn-sm btn-outline-primary py-0 px-2">编辑</a>
+              <?php if(floatval($it['price']) >= 0): ?>
               <form method="POST" style="display:inline">
                 <input type="hidden" name="action" value="toggle">
                 <input type="hidden" name="toggle_name" value="<?php echo htmlspecialchars($it['name']); ?>">
@@ -224,6 +231,7 @@ require_once 'header.php';
                   <?php echo $it['is_selling']?'下架':'上架'; ?>
                 </button>
               </form>
+              <?php endif; ?>
               <?php endif; ?>
               <?php if(can('items','delete')): ?>
               <form method="POST" style="display:inline" onsubmit="return confirm('确认删除物品「<?php echo htmlspecialchars($it['name']); ?>」？')">
@@ -318,9 +326,10 @@ require_once 'header.php';
       <h6 class="fw-bold mb-3 text-primary border-bottom pb-2"><i class="fas fa-coins me-2"></i>价格与库存</h6>
       <div class="row g-3 mb-4">
         <div class="col-md-3">
-          <label class="form-label fw-semibold small">价格</label>
-          <input type="number" class="form-control" name="price" step="0.01" min="0"
+          <label class="form-label fw-semibold small">价格 <span class="text-muted fw-normal">(-1=仅后台分配)</span></label>
+          <input type="number" class="form-control" name="price" step="0.01" min="-1"
                  value="<?php echo $edit_item['price']??0; ?>">
+          <div class="form-text">设为 <strong>-1</strong> 表示该物品不参与商店销售，仅通过后台手动分配</div>
         </div>
         <div class="col-md-3">
           <label class="form-label fw-semibold small">货币单位</label>
