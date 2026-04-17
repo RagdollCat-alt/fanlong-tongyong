@@ -305,9 +305,13 @@ function getProfileFieldsVisibility() {
     if ($cache !== null) return $cache;
     try {
         $rows = getDB()->query(
-            "SELECT text, is_hidden FROM game_terms WHERE key LIKE 'profile_%'"
+            "SELECT key, text, is_hidden FROM game_terms WHERE key LIKE 'profile_%'"
         )->fetchAll();
-        $cache = array_column($rows, 'is_hidden', 'text');
+        $cache = [];
+        foreach ($rows as $row) {
+            $cache[$row['text']] = $row['is_hidden'];                 // by Chinese text (常见情况)
+            $cache[substr($row['key'], 8)] = $row['is_hidden'];       // by key suffix, e.g. "sex" from "profile_sex"
+        }
     } catch (Exception $e) { $cache = []; }
     return $cache;
 }

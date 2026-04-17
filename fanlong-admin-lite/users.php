@@ -474,7 +474,8 @@ foreach ($stat_fields as $sf) { if (($equip_bonus[$sf]??0) != 0) { $has_bonus = 
         foreach($prof as $k=>$v):
             $_label   = tAuto($k, $k);
             // is_hidden: 1=可见, 0=隐藏；若 term 不存在则默认可见
-            $_visible = $_prof_vis[$_label] ?? $_prof_vis[$k] ?? 1;
+            // 先按原始键 $k 查（中文键/英文后缀都能命中），再按翻译后标签查
+            $_visible = $_prof_vis[$k] ?? $_prof_vis[$_label] ?? 1;
         ?>
         <div class="d-flex justify-content-between align-items-center border-bottom pb-1 mb-1 small <?php echo !$_visible ? 'opacity-50' : ''; ?>">
           <span class="text-muted d-flex align-items-center gap-1">

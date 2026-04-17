@@ -89,15 +89,23 @@ require_once 'header.php';
     <form method="POST">
       <input type="hidden" name="user_id" value="<?php echo htmlspecialchars($edit_row['id']); ?>">
       <div class="row g-3">
-      <?php foreach($slot_fields as $sf):
+      <?php
+      $_slot_vis = getSlotFieldsVisibility();
+      foreach($slot_fields as $sf):
         $label = tSlot($sf, $slot_fallback[$sf] ?? $sf);
         $cur_val = $edit_row[$sf] ?? '';
+        $_sv = $_slot_vis[$sf] ?? 1;
         // 该槽位的可选装备（按分组映射匹配 items.slot）
         $allowed_slots = $slot_item_map[$sf] ?? [$sf];
         $slot_items = array_filter($equip_items, fn($i)=>in_array($i['slot'], $allowed_slots));
       ?>
-      <div class="col-md-4">
-        <label class="form-label fw-semibold small"><?php echo $label; ?></label>
+      <div class="col-md-4 <?php echo !$_sv ? 'opacity-50' : ''; ?>">
+        <label class="form-label fw-semibold small d-flex align-items-center gap-1">
+          <?php echo $label; ?>
+          <?php if(!$_sv): ?>
+          <span class="badge text-bg-warning" style="font-size:.65rem;font-weight:500">对玩家隐藏</span>
+          <?php endif; ?>
+        </label>
         <select class="form-select" name="<?php echo $sf; ?>">
           <option value="">(未装备)</option>
           <?php foreach($slot_items as $si): ?>
@@ -156,7 +164,16 @@ require_once 'header.php';
       <table class="table table-hover datatable align-middle mb-0">
         <thead><tr class="table-active">
           <th class="ps-4">用户</th>
-          <?php foreach($slot_fields as $sf): ?><th><?php echo tSlot($sf,$slot_fallback[$sf]??$sf); ?></th><?php endforeach; ?>
+          <?php
+          $_slot_vis2 = getSlotFieldsVisibility();
+          foreach($slot_fields as $sf):
+            $_sv2 = $_slot_vis2[$sf] ?? 1;
+          ?>
+          <th class="<?php echo !$_sv2 ? 'opacity-50' : ''; ?>">
+            <?php echo tSlot($sf,$slot_fallback[$sf]??$sf); ?>
+            <?php if(!$_sv2): ?><span class="badge text-bg-warning ms-1" style="font-size:.6rem">隐</span><?php endif; ?>
+          </th>
+          <?php endforeach; ?>
           <th class="pe-4">操作</th>
         </tr></thead>
         <tbody>
