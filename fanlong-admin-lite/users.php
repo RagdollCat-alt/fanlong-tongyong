@@ -359,10 +359,21 @@ foreach ($stat_fields as $sf) { if (($equip_bonus[$sf]??0) != 0) { $has_bonus = 
     <div class="card">
       <div class="card-header"><i class="fas fa-shirt me-2"></i>当前装备</div>
       <div class="card-body">
-        <?php foreach($slot_fields as $slot): ?>
-        <?php $item_on=$equip_row[$slot]??null; if(!$item_on) continue; ?>
-        <div class="d-flex justify-content-between mb-1 small">
-          <span class="text-muted"><?php echo t($slot,$slot); ?></span>
+        <?php
+        $_slot_vis = getSlotFieldsVisibility();
+        foreach($slot_fields as $slot):
+            $item_on  = $equip_row[$slot] ?? null;
+            if(!$item_on) continue; // 空槽不展示
+            // is_hidden: 1=可见, 0=隐藏；若 term 不存在则默认可见
+            $_sv = $_slot_vis[$slot] ?? 1;
+        ?>
+        <div class="d-flex justify-content-between align-items-center mb-1 small <?php echo !$_sv ? 'opacity-50' : ''; ?>">
+          <span class="text-muted d-flex align-items-center gap-1">
+            <?php echo htmlspecialchars(tSlot($slot, $slot)); ?>
+            <?php if(!$_sv): ?>
+            <span class="badge text-bg-warning" style="font-size:.65rem;font-weight:500">隐藏槽</span>
+            <?php endif; ?>
+          </span>
           <span class="fw-semibold"><?php echo htmlspecialchars($item_on); ?></span>
         </div>
         <?php endforeach; ?>
@@ -458,9 +469,20 @@ foreach ($stat_fields as $sf) { if (($equip_bonus[$sf]??0) != 0) { $has_bonus = 
     <div class="card">
       <div class="card-header"><i class="fas fa-file-lines me-2"></i>档案信息</div>
       <div class="card-body">
-        <?php foreach($prof as $k=>$v): ?>
-        <div class="d-flex justify-content-between border-bottom pb-1 mb-1 small">
-          <span class="text-muted"><?php echo htmlspecialchars(tAuto($k, $k)); ?></span>
+        <?php
+        $_prof_vis = getProfileFieldsVisibility();
+        foreach($prof as $k=>$v):
+            $_label   = tAuto($k, $k);
+            // is_hidden: 1=可见, 0=隐藏；若 term 不存在则默认可见
+            $_visible = $_prof_vis[$_label] ?? $_prof_vis[$k] ?? 1;
+        ?>
+        <div class="d-flex justify-content-between align-items-center border-bottom pb-1 mb-1 small <?php echo !$_visible ? 'opacity-50' : ''; ?>">
+          <span class="text-muted d-flex align-items-center gap-1">
+            <?php echo htmlspecialchars($_label); ?>
+            <?php if(!$_visible): ?>
+            <span class="badge text-bg-warning" style="font-size:.65rem;font-weight:500">对玩家隐藏</span>
+            <?php endif; ?>
+          </span>
           <span><?php echo htmlspecialchars(is_array($v)?json_encode($v,JSON_UNESCAPED_UNICODE):strval($v)); ?></span>
         </div>
         <?php endforeach; ?>
