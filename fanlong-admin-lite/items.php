@@ -54,7 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $desc     = trim($_POST['desc']             ?? '');
         $stats    = trim($_POST['stats']            ?? '{}');
         $effect   = trim($_POST['effect']           ?? '{}');
-        $cond     = trim($_POST['condition_text']   ?? '');
+        $cond     = trim($_POST['condition']   ?? '');
         $recipe   = trim($_POST['compound_recipe']  ?? '{}');
         $param    = trim($_POST['param']            ?? '{}');
         $selling  = isset($_POST['is_selling']) ? 1 : 0;
@@ -118,10 +118,19 @@ if (in_array($action,['edit','add'])) {
 // 列表
 $items = [];
 if ($action==='list') {
-    $type_filter = $_GET['type'] ?? '';
+    $type_filter     = $_GET['type']     ?? '';
+    $sub_type_filter = $_GET['sub_type'] ?? '';
+    $slot_filter     = $_GET['slot']     ?? '';
+    $selling_filter  = $_GET['selling']  ?? '';
+    $conditions = []; $params = [];
+    if ($type_filter)     { $conditions[] = "type=?";     $params[] = $type_filter; }
+    if ($sub_type_filter) { $conditions[] = "sub_type=?"; $params[] = $sub_type_filter; }
+    if ($slot_filter)     { $conditions[] = "slot=?";     $params[] = $slot_filter; }
+    if ($selling_filter === '1')       { $conditions[] = "is_selling=1 AND CAST(price AS REAL)>=0"; }
+    elseif ($selling_filter === '0')   { $conditions[] = "is_selling=0 AND CAST(price AS REAL)>=0"; }
+    elseif ($selling_filter === 'backend') { $conditions[] = "CAST(price AS REAL)<0"; }
     $sql = "SELECT * FROM items";
-    $params = [];
-    if ($type_filter){ $sql.=" WHERE type=?"; $params[]=$type_filter; }
+    if ($conditions) $sql .= " WHERE " . implode(" AND ", $conditions);
     $sql .= " ORDER BY is_selling DESC, type, name";
     $stmt = $db->prepare($sql); $stmt->execute($params); $items=$stmt->fetchAll();
 }
@@ -150,6 +159,27 @@ require_once 'header.php';
         <?php echo htmlspecialchars($tl); ?>
       </option>
       <?php endforeach; ?>
+    </select>
+    <select class="form-select form-select-sm" name="sub_type" style="width:auto">
+      <option value="">全部子类型</option>
+      <option value="normal"        <?php echo ($_GET['sub_type']??'')==='normal'?'selected':''; ?>>普通</option>
+      <option value="rename_card"   <?php echo ($_GET['sub_type']??'')==='rename_card'?'selected':''; ?>>改名卡</option>
+      <option value="optional_pack" <?php echo ($_GET['sub_type']??'')==='optional_pack'?'selected':''; ?>>自选礼包</option>
+      <option value="stat_boost"    <?php echo ($_GET['sub_type']??'')==='stat_boost'?'selected':''; ?>>属性提升</option>
+    </select>
+    <select class="form-select form-select-sm" name="slot" style="width:auto">
+      <option value="">全部槽位</option>
+      <?php foreach($slot_options as $sv=>$sl): if($sv==='') continue; ?>
+      <option value="<?php echo htmlspecialchars($sv); ?>" <?php echo ($_GET['slot']??'')===$sv?'selected':''; ?>>
+        <?php echo htmlspecialchars($sl); ?>
+      </option>
+      <?php endforeach; ?>
+    </select>
+    <select class="form-select form-select-sm" name="selling" style="width:auto">
+      <option value="">全部状态</option>
+      <option value="1"       <?php echo ($_GET['selling']??'')==='1'?'selected':''; ?>>在售</option>
+      <option value="0"       <?php echo ($_GET['selling']??'')==='0'?'selected':''; ?>>下架</option>
+      <option value="backend" <?php echo ($_GET['selling']??'')==='backend'?'selected':''; ?>>后台专用</option>
     </select>
     <button class="btn btn-sm btn-outline-secondary">筛选</button>
     <a href="items.php" class="btn btn-sm btn-outline-secondary">重置</a>
@@ -288,6 +318,7 @@ require_once 'header.php';
             </option>
             <?php endforeach; ?>
           </select>
+          <div class="form-text"><strong>equip</strong>：玩家「换上」穿戴，stats 持续生效，货币键首穿永久发放；<strong>consumable</strong>：玩家「使用」触发 effect 效果</div>
         </div>
         <div class="col-md-2">
           <label class="form-label fw-semibold small">子类型</label>
@@ -297,6 +328,7 @@ require_once 'header.php';
             <option value="optional_pack" <?php echo ($edit_item['sub_type']??'')==='optional_pack'?'selected':''; ?>>自选礼包</option>
             <option value="stat_boost" <?php echo ($edit_item['sub_type']??'')==='stat_boost'?'selected':''; ?>>属性提升</option>
           </select>
+          <div class="form-text"><strong>normal</strong>：直接触发 effect；<strong>rename_card</strong>：「使用 卡名 新名字」改名并同步群名片；<strong>optional_pack</strong>：「使用 物品名 属性名」自选加点，配合「扩展参数」字段；<strong>stat_boost</strong>：预留，暂无特殊逻辑</div>
         </div>
         <div class="col-md-2" id="slotWrap">
           <label class="form-label fw-semibold small">装备槽位</label>
@@ -307,6 +339,7 @@ require_once 'header.php';
             </option>
             <?php endforeach; ?>
           </select>
+          <div class="form-text">hair/top/bottom/head/neck 独占槽各限 1 件；accessory 最多 4 件（acc1-4），可「换上 物品名 acc2」指定位置；interior 最多 2 件（inner1-2）</div>
         </div>
         <div class="col-md-2">
           <label class="form-label fw-semibold small">是否在售</label>
@@ -360,10 +393,8 @@ require_once 'header.php';
           <textarea class="form-control font-monospace" name="stats" rows="3"
                     placeholder='{"stat_face":5,"stat_charm":3}'><?php echo htmlspecialchars($edit_item['stats']??'{}'); ?></textarea>
           <div class="form-text">
-            可用键名：
-            <?php foreach(['stat_face','stat_charm','stat_intel','stat_biz','stat_talk','stat_body','stat_art','stat_obed'] as $sf): ?>
-            <code><?php echo $sf; ?></code>(<?php echo t($sf,$sf); ?>)
-            <?php endforeach; ?>
+            <strong>仅装备类有效。</strong>stat_* 键：穿戴期间持续加成，卸下后消失；货币键（如 <code>{"<?php echo t('term_yuCoin','虞元'); ?>":100}</code>）：首次穿戴时一次性永久发放。键名支持英文（stat_face）或当前术语中文名（<?php echo t('stat_face','颜值'); ?>）。<br>
+            可用 stat 键：<?php foreach(['stat_face','stat_charm','stat_intel','stat_biz','stat_talk','stat_body','stat_art','stat_obed'] as $sf): ?><code><?php echo $sf; ?></code>(<?php echo t($sf,$sf); ?>) <?php endforeach; ?>
           </div>
         </div>
         <div class="col-md-6">
@@ -381,23 +412,22 @@ require_once 'header.php';
       <h6 class="fw-bold mb-3 text-primary border-bottom pb-2"><i class="fas fa-cogs me-2"></i>高级配置</h6>
       <div class="row g-3 mb-4">
         <div class="col-md-4">
-          <label class="form-label fw-semibold small">购买条件 <span class="text-muted">(选填)</span></label>
-          <input type="text" class="form-control" name="condition_text"
-                 value="<?php echo htmlspecialchars($edit_item['condition']??''); ?>"
-                 placeholder="如：需要VIP等级≥3">
-          <div class="form-text">限制玩家购买此物品的条件</div>
+          <label class="form-label fw-semibold small">购买条件 <span class="text-muted">(JSON，选填)</span></label>
+          <textarea class="form-control font-monospace" name="condition" rows="2"
+                    placeholder="{}"><?php echo htmlspecialchars($edit_item['condition']??''); ?></textarea>
+          <div class="form-text">JSON 格式，满足条件才可购买。如 <code>{"reputation":100}</code> 需名誉≥100，<code>{"stat_face":50}</code> 需颜值≥50，支持任意属性字段</div>
         </div>
         <div class="col-md-4">
           <label class="form-label fw-semibold small">合成配方 <span class="text-muted">(JSON)</span></label>
           <textarea class="form-control font-monospace" name="compound_recipe" rows="2"
                     placeholder="{}"><?php echo htmlspecialchars($edit_item['compound_recipe']??'{}'); ?></textarea>
-          <div class="form-text">合成该物品所需材料，格式：{"材料名":数量}</div>
+          <div class="form-text">玩家「兑换 物品名」触发。如 <code>{"原材料A":2,"yuCoin":100}</code> 消耗 2 个原材料A 和 100 虞元；材料可为物品名或货币英文键</div>
         </div>
         <div class="col-md-4">
           <label class="form-label fw-semibold small">扩展参数 <span class="text-muted">(JSON)</span></label>
           <textarea class="form-control font-monospace" name="param" rows="2"
                     placeholder="{}"><?php echo htmlspecialchars($edit_item['param']??'{}'); ?></textarea>
-          <div class="form-text">物品其他自定义参数</div>
+          <div class="form-text">自选礼包（optional_pack）专用，数组格式，如 <code>["颜值","魅力","智谋"]</code>；玩家使用时从中选一属性加点（点数由 effect.amount 决定）</div>
         </div>
       </div>
 
