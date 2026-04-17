@@ -32,18 +32,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $db->prepare("INSERT INTO user_equip ($cols) VALUES ($ph)")->execute([$user_id,...array_values($slots)]);
         }
 
-        // 对新增装备的槽位，自动在 item_instances 创建未发放记录
-        // 保证机器人首穿货币奖励逻辑能正常触发
+        // 仅对有货币加成的新装备，创建 item_instances 记录（待发放）
+        $yu_term  = $db->query("SELECT text FROM game_terms WHERE key='term_yuCoin' LIMIT 1")->fetchColumn() ?: 'yuCoin';
+        $rep_term = $db->query("SELECT text FROM game_terms WHERE key='term_reputation' LIMIT 1")->fetchColumn() ?: 'reputation';
         foreach ($slot_fields as $sf) {
             $new_item = $slots[$sf];
             $old_item = $old_row[$sf] ?? '';
-            if ($new_item !== '' && $new_item !== $old_item) {
-                $exists = $db->prepare("SELECT COUNT(*) FROM item_instances WHERE item_name=? AND user_id=?");
-                $exists->execute([$new_item, $user_id]);
-                if ($exists->fetchColumn() == 0) {
-                    $db->prepare("INSERT INTO item_instances (item_name, user_id, currency_given) VALUES (?,?,0)")
-                       ->execute([$new_item, $user_id]);
-                }
+            if ($new_item === '' || $new_item === $old_item) continue;
+            // 查物品是否含货币属性
+            $ir = $db->prepare("SELECT stats FROM items WHERE name=? LIMIT 1");
+            $ir->execute([$new_item]);
+            $item_stats = safeJsonDecode(($ir->fetchColumn() ?: '{}'));
+            $has_currency = isset($item_stats[$yu_term]) || isset($item_stats[$rep_term])
+                         || isset($item_stats['yuCoin']) || isset($item_stats['reputation']);
+            if (!$has_currency) continue;
+            // 有货币加成且无实例记录时才插入
+            $exists = $db->prepare("SELECT COUNT(*) FROM item_instances WHERE item_name=? AND user_id=?");
+            $exists->execute([$new_item, $user_id]);
+            if ($exists->fetchColumn() == 0) {
+                $db->prepare("INSERT INTO item_instances (item_name, user_id, currency_given) VALUES (?,?,0)")
+                   ->execute([$new_item, $user_id]);
             }
         }
 
