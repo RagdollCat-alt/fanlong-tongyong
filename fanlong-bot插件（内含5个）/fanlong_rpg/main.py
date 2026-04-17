@@ -148,14 +148,17 @@ def get_slot_key(chinese_name):
 def _construct_user_from_row(row):
     if not row: return None
     user_id = row[0]
+    _cur = json.loads(row[3])
+    _cur.setdefault("yuCoin", 0)
+    _cur.setdefault("reputation", 0)
     u = {
         "id": row[0], "uid": row[1], "name": row[2],
-        "currency": json.loads(row[3]),
+        "currency": _cur,
         "profile": json.loads(row[4]),
         "limits": json.loads(row[5]),
         "stats": {}, "bag": {}, "equip": {}
     }
-    
+
     s_row = DB.query("SELECT * FROM user_stats WHERE user_id = ?", (user_id,))
     if s_row:
         vals = s_row[0]

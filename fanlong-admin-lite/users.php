@@ -24,7 +24,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $limits   = trim($_POST['limits']   ?? '{}');
 
         // 验证JSON
-        $cur_arr = safeJsonDecode($currency); if (empty($cur_arr)) $currency = '{}';
+        $cur_arr = safeJsonDecode($currency);
+        if (!isset($cur_arr['yuCoin']))  $cur_arr['yuCoin']     = 0;
+        if (!isset($cur_arr['reputation'])) $cur_arr['reputation'] = 0;
+        $currency = json_encode($cur_arr, JSON_UNESCAPED_UNICODE);
         $pro_arr = safeJsonDecode($profile);  if (empty($pro_arr)) $profile  = '{}';
         $lim_arr = safeJsonDecode($limits);   if (empty($lim_arr)) $limits   = '{}';
 
