@@ -31,11 +31,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($btype === 'item') {
                     // ——— 物品 ———
                     if (empty($bvalue)) { $result_msg='请选择物品名称'; $result_type='danger'; goto done; }
-                    // 查物品是否为装备类
-                    $itype_r = $db->prepare("SELECT type FROM items WHERE name=?");
+                    // 查物品类型及 stats，判断是否需要创建首穿实例记录
+                    $itype_r = $db->prepare("SELECT type, stats FROM items WHERE name=? LIMIT 1");
                     $itype_r->execute([$bvalue]);
-                    $itype = $itype_r->fetchColumn();
-                    $now = time();
+                    $irow  = $itype_r->fetch();
+                    $itype = $irow['type'] ?? '';
+                    $now   = time();
+                    // 只有装备且含货币加成时才需要实例记录
+                    $yu_term  = $db->query("SELECT text FROM game_terms WHERE key='term_yuCoin' LIMIT 1")->fetchColumn() ?: 'yuCoin';
+                    $rep_term = $db->query("SELECT text FROM game_terms WHERE key='term_reputation' LIMIT 1")->fetchColumn() ?: 'reputation';
+                    $istats   = safeJsonDecode($irow['stats'] ?? '{}');
+                    $needs_instance = ($itype === 'equip') && (
+                        isset($istats[$yu_term]) || isset($istats[$rep_term]) ||
+                        isset($istats['yuCoin']) || isset($istats['reputation'])
+                    );
 
                     foreach ($all_users as $uid) {
                         $row = $db->prepare("SELECT count FROM user_bag WHERE user_id=? AND item_name=?");
@@ -47,8 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 $new_count = max(0, $existing['count'] + $bamt);
                                 $db->prepare("UPDATE user_bag SET count=? WHERE user_id=? AND item_name=?")
                                    ->execute([$new_count, $uid, $bvalue]);
-                                // 装备：创建增量实例
-                                if ($itype === 'equip') {
+                                if ($needs_instance) {
                                     for ($i = 0; $i < $bamt; $i++) {
                                         $db->prepare("INSERT INTO item_instances (item_name,user_id,currency_given,created_at) VALUES (?,?,0,?)")
                                            ->execute([$bvalue, $uid, $now]);
@@ -57,8 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             } else {
                                 $db->prepare("INSERT INTO user_bag (user_id,item_name,count) VALUES (?,?,?)")
                                    ->execute([$uid, $bvalue, $bamt]);
-                                // 装备：创建实例
-                                if ($itype === 'equip') {
+                                if ($needs_instance) {
                                     for ($i = 0; $i < $bamt; $i++) {
                                         $db->prepare("INSERT INTO item_instances (item_name,user_id,currency_given,created_at) VALUES (?,?,0,?)")
                                            ->execute([$bvalue, $uid, $now]);
