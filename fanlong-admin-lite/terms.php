@@ -320,8 +320,9 @@ function editTerm(key,text,cat,hidden,sortOrder){
   document.getElementById('keyEditNote').style.display = '';
   document.getElementById('termCat').value = cat || 'other';
   document.getElementById('termHidden').checked = hidden == 0;
-  // 仅档案字段显示排序输入
-  document.getElementById('sortOrderRow').style.display = (cat === '档案配置') ? '' : 'none';
+  // 档案/属性/槽位字段显示排序输入
+  const showSort = ['档案配置','属性配置','服饰配置'].includes(cat);
+  document.getElementById('sortOrderRow').style.display = showSort ? '' : 'none';
   document.getElementById('termModalTitle').textContent = '编辑术语';
   new bootstrap.Modal(document.getElementById('termModal')).show();
 }

@@ -40,6 +40,20 @@ SLOT_GROUPS = {
     "interior": ["inner1", "inner2"]
 }
 
+def get_ordered_stat_keys():
+    """按 sort_order 返回可见属性键列表，回退到 KEY_MAP"""
+    rows = DB.query(
+        "SELECT key FROM game_terms WHERE key LIKE 'stat_%' AND is_hidden=1 ORDER BY sort_order, rowid"
+    )
+    return [r[0] for r in rows] if rows else KEY_MAP["stats"]
+
+def get_ordered_slot_keys():
+    """按 sort_order 返回可见槽位键列表（不含 slot_ 前缀），回退到 KEY_MAP"""
+    rows = DB.query(
+        "SELECT key FROM game_terms WHERE key LIKE 'slot_%' AND is_hidden=1 ORDER BY sort_order, rowid"
+    )
+    return [r[0][5:] for r in rows] if rows else KEY_MAP["slots"]
+
 ITEM_DB = {}
 
 # ================= 🛠️ 数据库自动升级 (关键) =================
@@ -805,8 +819,7 @@ def process_message(plugin_event, Proc, is_private=False):
         # 只显示可见的属性字段（过滤掉 is_hidden=0 的字段）
         stats_txt = "\n".join([
             f"{Terms.get(k)}：{user['stats'][Terms.get(k)]}"
-            for k in KEY_MAP["stats"]
-            if Terms.is_visible(k)
+            for k in get_ordered_stat_keys()
         ])
         send_reply(f"✅ 档案创建成功！\n〖角色档案〗\n姓名：{name}\n{stats_txt}\n----------------\n{NAME_YU}：{user['currency']['yuCoin']}")
         auto_update_card(sender_id, user); return
@@ -1381,22 +1394,8 @@ def process_message(plugin_event, Proc, is_private=False):
             if not Terms.is_visible('slot_'+k):
                 return None
             return f"{Terms.get('slot_'+k)}：{e.get(k) or '无'}"
-        # 收集可见的装备行
-        slot_groups = [
-            ['hair', 'top', 'bottom', 'head', 'neck'],
-            ['inner1', 'inner2'],
-            ['acc1', 'acc2', 'acc3', 'acc4']
-        ]
-        lines = []
-        for group in slot_groups:
-            group_lines = []
-            for slot in group:
-                slot_line = show(slot)
-                if slot_line:
-                    group_lines.append(slot_line)
-            if group_lines:
-                lines.extend(group_lines)
-                lines.append("-" * 16)
+        # 按 sort_order 动态收集可见的装备行
+        lines = [sl for sl in (show(k) for k in get_ordered_slot_keys()) if sl]
         if lines and lines[-1] == "-" * 16:
             lines.pop()
         send_reply(f"\n🕴️ {t['name']} 的着装\n" + "\n".join(lines)); return
@@ -1406,8 +1405,7 @@ def process_message(plugin_event, Proc, is_private=False):
         if len(args) > 1: t = db_find_user_by_name(args[1])
         if not t: send_reply("❌ 查无此人。"); return
         # 只显示可见的属性（is_hidden=1）
-        visible_stats = [k for k in KEY_MAP["stats"] if Terms.is_visible(k)]
-        stats_str = "\n".join([f"{Terms.get(k)}：{get_stats(t, Terms.get(k))}" for k in visible_stats])
+        stats_str = "\n".join([f"{Terms.get(k)}：{get_stats(t, Terms.get(k))}" for k in get_ordered_stat_keys()])
         send_reply(f"〖{t['name']} 的属性〗\n{stats_str}\n----------------\n总数值：{get_stats(t)}\n{NAME_REP}：{get_total_reputation(t)}\n{NAME_YU}：{t['currency']['yuCoin']}"); return
 
     if msg_type in ["赠送", "送道具"] and len(args) >= 2:

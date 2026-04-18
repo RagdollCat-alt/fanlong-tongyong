@@ -218,6 +218,17 @@ class DatabaseManager:
                     self.cursor.execute("UPDATE game_terms SET sort_order=? WHERE key=?", (_o, _k))
                 print("[DB] game_terms 表已升级，添加 sort_order 字段")
 
+            # 初始化 stat_/slot_ 默认顺序（仅对 sort_order=0 的条目生效，幂等）
+            _default_orders = [
+                ("stat_face", 1), ("stat_charm", 2), ("stat_intel", 3), ("stat_biz", 4),
+                ("stat_talk", 5), ("stat_body", 6), ("stat_art", 7), ("stat_obed", 8),
+                ("slot_hair", 1), ("slot_top", 2), ("slot_bottom", 3), ("slot_head", 4),
+                ("slot_neck", 5), ("slot_inner1", 6), ("slot_inner2", 7),
+                ("slot_acc1", 8), ("slot_acc2", 9), ("slot_acc3", 10), ("slot_acc4", 11),
+            ]
+            for _k, _o in _default_orders:
+                self.cursor.execute("UPDATE game_terms SET sort_order=? WHERE key=? AND sort_order=0", (_o, _k))
+
             # 初始化默认术语 (检测是否已存在，不存在则插入)
             # 注意：我在这里增加了 profile_xxx 的字段
             check_sql = "SELECT count(*) FROM game_terms WHERE key='profile_age'"
