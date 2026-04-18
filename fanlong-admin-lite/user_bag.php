@@ -333,9 +333,9 @@ function openEditModal(userId, itemName, count) {
   document.getElementById('hiddenEditUserId').value       = userId;
   document.getElementById('hiddenEditItemName').value     = itemName;
 
-  // 移除下拉框的 name，防止与隐藏域冲突提交
-  sel1.removeAttribute('name');
-  sel2.removeAttribute('name');
+  // 移除下拉框的 name 和 required，防止与隐藏域冲突提交
+  sel1.removeAttribute('name'); sel1.required = false;
+  sel2.removeAttribute('name'); sel2.required = false;
 
   // 切换到编辑模式 UI
   document.getElementById('editLockDisplay').classList.remove('d-none');
@@ -353,9 +353,9 @@ document.querySelector('[data-bs-target="#addItemModal"]')?.addEventListener('cl
   var sel1 = document.getElementById('editUserId');
   var sel2 = document.getElementById('editItemName');
 
-  // 恢复 name 属性
-  sel1.setAttribute('name', 'user_id');
-  sel2.setAttribute('name', 'item_name');
+  // 恢复 name 和 required 属性
+  sel1.setAttribute('name', 'user_id');   sel1.required = true;
+  sel2.setAttribute('name', 'item_name'); sel2.required = true;
   sel1.value = ''; sel2.value = '';
   if(typeof $ !== 'undefined') { $(sel1).trigger('change'); $(sel2).trigger('change'); }
 
