@@ -3,7 +3,6 @@ import os
 import json
 import time
 import random
-import threading
 import re
 import math
 import requests  # 🟢 引入 requests 库用于下载图片
@@ -634,19 +633,81 @@ def process_message(plugin_event, Proc, is_private=False):
         if is_private: plugin_event.reply(content)
         else: plugin_event.reply(f"[CQ:at,qq={sender_id}]\n{content}")
 
+    _RANK_RE = re.compile(r'^\s*[【\[]?\s*(?:正|从|次)?[一二三四五六七八九十百零〇0-9]+品[】\]]?\s*')
+
     def auto_update_card(target_uid, target_user_data):
+        print(f"[名片DEBUG] 函数已进入 uid={target_uid} is_private={is_private} group_id={group_id} has_data={bool(target_user_data)}")
         if not is_private and group_id and target_user_data:
-            time.sleep(1.0) 
+            time.sleep(1.0)
             try:
                 rows = DB.query("SELECT profile, name FROM users WHERE id = ?", (str(target_uid),))
                 if not rows: return
                 p = json.loads(rows[0][0]); name = rows[0][1]
-                KEY_JOB = Terms.get('profile_job', '职位'); KEY_FAMILY = Terms.get('profile_family', '家世'); KEY_AGE = Terms.get('profile_age', '年龄')
-                raw_job = p.get(KEY_JOB, '')
-                job = re.sub(r'^[正从次]?[一二三四五六七八九]品', '', raw_job).strip()
-                family = p.get(KEY_FAMILY, ''); age = p.get(KEY_AGE, ''); attr = p.get('属性', '')
-                card_str = f"【{job}】{name}-{family}-{age}-{attr}"
-                plugin_event.set_group_card(group_id, int(target_uid), card_str)
+
+                # 读取名片模板（与 fanlong_card 同源）
+                tpl_rows = DB.query("SELECT value FROM game_config WHERE key='card_template'")
+                template = tpl_rows[0][0] if tpl_rows else "【{职位}】{姓名}-{家世}-{年龄}-{属性}"
+
+                # 构建字段映射
+                field_mapping = {"姓名": name}
+                term_rows = DB.query("SELECT key, text FROM game_terms WHERE key LIKE 'profile_%'")
+                if term_rows:
+                    for tkey, ttext in term_rows:
+                        if ttext:
+                            value = p.get(ttext, '')
+                            if not value:
+                                if tkey == "profile_job": value = p.get("职位") or p.get("官职") or ''
+                                elif tkey == "profile_name": value = name
+                                else: value = p.get(tkey.replace('profile_', ''), '')
+                            if tkey == "profile_job" and value:
+                                value = _RANK_RE.sub('', str(value)).strip() or value
+                                field_mapping["职位"] = value
+                                field_mapping["官职"] = value
+                            field_mapping[ttext] = value
+
+                # 直接将 profile 所有字段写入 field_mapping（最高优先级）
+                # 这样模板里写 {官职}、{修为} 等，只要 profile 里有对应的 key 就能取到
+                for pk, pv in p.items():
+                    if isinstance(pv, str):
+                        field_mapping[pk] = pv
+
+                # 对官职/职位类字段统一做品级前缀清洗
+                for k in ("官职", "职位"):
+                    if field_mapping.get(k):
+                        field_mapping[k] = _RANK_RE.sub('', str(field_mapping[k])).strip() or field_mapping[k]
+
+                # 兜底：确保模板必备 key 存在（空值也要有 key，否则 .format 会 KeyError）
+                field_mapping.setdefault("职位", "")
+                field_mapping.setdefault("官职", "")
+
+                try:
+                    card_str = template.format(**field_mapping)
+                    card_str = re.sub(r'-+', '-', card_str).strip('-').strip()
+                except Exception:
+                    card_str = f"【{field_mapping.get('职位','')}】{name}-{field_mapping.get('家世','')}-{field_mapping.get('年龄','')}-{field_mapping.get('属性','')}"
+
+                # 读取所有同步群
+                sync_groups = [int(group_id)]
+                try:
+                    sg_rows = DB.query("SELECT value FROM game_config WHERE key='card_sync_groups'")
+                    if sg_rows:
+                        extra = json.loads(sg_rows[0][0])
+                        for gid in extra:
+                            if int(gid) not in sync_groups:
+                                sync_groups.append(int(gid))
+                except Exception: pass
+
+                http_url = "http://127.0.0.1:11111/set_group_card?access_token=345312"
+                for sgid in sync_groups:
+                    print(f"[名片更新] uid={target_uid} gid={sgid} card={card_str!r}")
+                    try:
+                        plugin_event.set_group_card(sgid, int(target_uid), card_str)
+                    except Exception as e1:
+                        print(f"[名片更新] OlivOS接口失败(gid={sgid}): {e1}")
+                        try:
+                            requests.post(http_url, json={"group_id": sgid, "user_id": int(target_uid), "card": card_str}, timeout=5)
+                        except Exception as e2:
+                            print(f"[名片更新] HTTP接口也失败(gid={sgid}): {e2}")
             except Exception as e:
                 print(f"[RPG改名错误] {e}")
 

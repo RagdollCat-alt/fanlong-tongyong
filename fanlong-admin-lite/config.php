@@ -153,6 +153,16 @@ function migrateDB() {
             }
         }
 
+        // game_config: 补充名片同步配置，确保后台可直接维护
+        $card_configs = [
+            ['card_sync_groups', '[]', '名片同步群列表，JSON数组或逗号分隔群号'],
+            ['card_template', '【{职位}】{姓名}-{家世}-{年龄}-{属性}', '群名片模板，例如 {姓名}|{职位}|{属性}'],
+        ];
+        $stmt = $db->prepare("INSERT OR IGNORE INTO game_config (key, value, `desc`) VALUES (?, ?, ?)");
+        foreach ($card_configs as $cfg) {
+            $stmt->execute($cfg);
+        }
+
         // game_terms: 确保 category 和 is_hidden 字段存在
         $tcols = array_column($db->query("PRAGMA table_info(game_terms)")->fetchAll(PDO::FETCH_ASSOC), 'name');
         if (!in_array('category', $tcols)) {
