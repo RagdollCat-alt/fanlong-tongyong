@@ -15,6 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $user_id   = trim($_POST['user_id']   ?? '');
         $item_name = trim($_POST['item_name'] ?? '');
         $count     = max(0, intval($_POST['count'] ?? 0));
+        $mode      = $_POST['mode'] ?? 'edit'; // add=累加，edit=替换
         try {
             $old = $db->prepare("SELECT * FROM user_bag WHERE user_id=? AND item_name=?");
             $old->execute([$user_id,$item_name]); $old=$old->fetch();
@@ -45,10 +46,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $old_count_row = $exists->fetch();
                 if ($old_count_row !== false) {
                     $old_count = intval($old_count_row['count']);
-                    $db->prepare("UPDATE user_bag SET count=? WHERE user_id=? AND item_name=?")->execute([$count,$user_id,$item_name]);
+                    // add模式：累加；edit模式：替换为输入值
+                    $new_count = ($mode === 'add') ? $old_count + $count : $count;
+                    $db->prepare("UPDATE user_bag SET count=? WHERE user_id=? AND item_name=?")->execute([$new_count,$user_id,$item_name]);
                     // 数量增加时补充 item_instances（仅含货币加成的装备）
-                    if ($needs_instance && $count > $old_count) {
-                        $add = $count - $old_count;
+                    if ($needs_instance && $new_count > $old_count) {
+                        $add = $new_count - $old_count;
                         $now = time();
                         for ($i = 0; $i < $add; $i++) {
                             $db->prepare("INSERT INTO item_instances (item_name,user_id,currency_given,created_at) VALUES (?,?,0,?)")
@@ -250,6 +253,7 @@ require_once 'header.php';
       </div>
       <form method="POST">
         <input type="hidden" name="action" value="update">
+        <input type="hidden" name="mode" id="modeInput" value="add">
         <div class="modal-body">
 
           <!-- ① 编辑模式：锁定显示（不可更改用户/物品，通过隐藏域提交值） -->
@@ -301,7 +305,7 @@ require_once 'header.php';
           </div>
 
           <div class="mb-3">
-            <label class="form-label fw-semibold small">数量 <span class="text-muted">(填0则删除该物品)</span></label>
+            <label class="form-label fw-semibold small">数量 <span class="text-muted" id="countHint">（新增模式：填写要增加的数量）</span></label>
             <input type="number" class="form-control" name="count" id="editCount" required min="0" value="1">
           </div>
         </div>
@@ -338,6 +342,8 @@ function openEditModal(userId, itemName, count) {
   document.getElementById('addSelectDisplay').classList.add('d-none');
 
   document.getElementById('editCount').value = count;
+  document.getElementById('modeInput').value = 'edit';
+  document.getElementById('countHint').textContent = '（直接填写目标数量，填0则删除）';
   document.getElementById('itemModalTitle').textContent = '修改背包物品';
   new bootstrap.Modal(document.getElementById('addItemModal')).show();
 }
@@ -356,6 +362,9 @@ document.querySelector('[data-bs-target="#addItemModal"]')?.addEventListener('cl
   // 切换到新增模式 UI
   document.getElementById('editLockDisplay').classList.add('d-none');
   document.getElementById('addSelectDisplay').classList.remove('d-none');
+  document.getElementById('modeInput').value = 'add';
+  document.getElementById('countHint').textContent = '（新增模式：填写要增加的数量）';
+  document.getElementById('editCount').value = 1;
 
   document.getElementById('editCount').value = 1;
   document.getElementById('itemModalTitle').textContent = '新增背包物品';
