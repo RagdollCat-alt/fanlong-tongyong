@@ -18,13 +18,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $old = $db->prepare("SELECT * FROM user_bag WHERE user_id=? AND item_name=?");
             $old->execute([$user_id,$item_name]); $old=$old->fetch();
-            // 查物品类型（用于同步 item_instances）
-            $itype_r = $db->prepare("SELECT type FROM items WHERE name=?");
+            // 查物品类型和属性加成（用于同步 item_instances）
+            $itype_r = $db->prepare("SELECT type, stats FROM items WHERE name=?");
             $itype_r->execute([$item_name]);
-            $itype = $itype_r->fetchColumn();
+            $irow  = $itype_r->fetch();
+            $itype = $irow['type'] ?? '';
+            // 判断是否需要创建首穿实例（装备 + 含货币加成）
+            $yu_term  = $db->query("SELECT text FROM game_terms WHERE key='term_yuCoin' LIMIT 1")->fetchColumn() ?: 'yuCoin';
+            $rep_term = $db->query("SELECT text FROM game_terms WHERE key='term_reputation' LIMIT 1")->fetchColumn() ?: 'reputation';
+            $istats   = safeJsonDecode($irow['stats'] ?? '{}');
+            $needs_instance = ($itype === 'equip') && (
+                isset($istats[$yu_term]) || isset($istats[$rep_term]) ||
+                isset($istats['yuCoin']) || isset($istats['reputation'])
+            );
             if ($count === 0) {
                 $db->prepare("DELETE FROM user_bag WHERE user_id=? AND item_name=?")->execute([$user_id,$item_name]);
-                // 同步删除 item_instances（装备类）
+                // 同步删除 item_instances（装备类，无论是否含货币加成）
                 if ($itype === 'equip') {
                     $db->prepare("DELETE FROM item_instances WHERE item_name=? AND user_id=?")->execute([$item_name,$user_id]);
                 }
@@ -37,8 +46,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($old_count_row !== false) {
                     $old_count = intval($old_count_row['count']);
                     $db->prepare("UPDATE user_bag SET count=? WHERE user_id=? AND item_name=?")->execute([$count,$user_id,$item_name]);
-                    // 数量增加时补充 item_instances（装备类）
-                    if ($itype === 'equip' && $count > $old_count) {
+                    // 数量增加时补充 item_instances（仅含货币加成的装备）
+                    if ($needs_instance && $count > $old_count) {
                         $add = $count - $old_count;
                         $now = time();
                         for ($i = 0; $i < $add; $i++) {
@@ -49,8 +58,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     logAction('user_bag','update',"$user_id/$item_name",$old,['count'=>$count]);
                 } else {
                     $db->prepare("INSERT INTO user_bag (user_id,item_name,count) VALUES (?,?,?)")->execute([$user_id,$item_name,$count]);
-                    // 新增装备时同步写 item_instances
-                    if ($itype === 'equip') {
+                    // 新增时同步写 item_instances（仅含货币加成的装备）
+                    if ($needs_instance) {
                         $now = time();
                         for ($i = 0; $i < $count; $i++) {
                             $db->prepare("INSERT INTO item_instances (item_name,user_id,currency_given,created_at) VALUES (?,?,0,?)")

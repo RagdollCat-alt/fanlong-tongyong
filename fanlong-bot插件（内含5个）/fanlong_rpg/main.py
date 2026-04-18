@@ -1087,8 +1087,13 @@ def process_message(plugin_event, Proc, is_private=False):
             DB.execute("UPDATE items SET stock_qty = stock_qty - ? WHERE name = ?", (count, item_name))
             item['stock_qty'] -= count # 更新内存，无需重载即可生效
 
-        # 🟢 为购买的道具创建实例记录（支持多个相同道具）
-        create_item_instances(sender_id, item_name, count)
+        # 仅对含货币加成的装备创建首穿实例记录
+        if item.get("type") == "equip":
+            _stats = item.get("stats", {})
+            _yu_key  = Terms.get("term_yuCoin")
+            _rep_key = Terms.get("term_reputation")
+            if any(k in _stats for k in (_yu_key, _rep_key, "yuCoin", "reputation")):
+                create_item_instances(sender_id, item_name, count)
 
         user["bag"][item_name] = user["bag"].get(item_name, 0) + count; db_save_user(user)
         send_reply(f"✅ 购买成功：{item_name} * {count}\n介绍：{item['desc']}"); return
