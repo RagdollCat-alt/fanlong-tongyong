@@ -196,7 +196,7 @@ require_once 'header.php';
           <?php endif; ?>
         </td>
         <td class="text-center text-muted small">
-          <?php echo $term['category']==='档案配置' ? intval($term['sort_order'] ?? 0) : '—'; ?>
+          <?php echo in_array($term['category'],['档案配置','属性配置','服饰配置']) ? intval($term['sort_order'] ?? 0) : '—'; ?>
         </td>
         <td class="pe-4">
           <div class="d-flex gap-1">
