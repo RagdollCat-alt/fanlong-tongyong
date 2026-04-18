@@ -454,7 +454,7 @@ def generate_profile(user):
 
     # 从数据库动态读取所有可见档案字段（按录入顺序展示，支持后台自定义新增）
     profile_rows = DB.query(
-        "SELECT key, text FROM game_terms WHERE key LIKE 'profile_%' AND is_hidden=1 ORDER BY rowid"
+        "SELECT key, text FROM game_terms WHERE key LIKE 'profile_%' AND is_hidden=1 ORDER BY sort_order, rowid"
     )
 
     for key, label in profile_rows:

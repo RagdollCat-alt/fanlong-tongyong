@@ -190,7 +190,8 @@ class DatabaseManager:
                 CREATE TABLE IF NOT EXISTS game_terms (
                     key TEXT PRIMARY KEY,
                     text TEXT,
-                    is_hidden INTEGER DEFAULT 1
+                    is_hidden INTEGER DEFAULT 1,
+                    sort_order INTEGER DEFAULT 0
                 )
             ''')
 
@@ -200,6 +201,22 @@ class DatabaseManager:
             except Exception:
                 self.cursor.execute("ALTER TABLE game_terms ADD COLUMN is_hidden INTEGER DEFAULT 1")
                 print("[DB] game_terms 表已升级，添加 is_hidden 字段")
+
+            # 自动升级：如果表已存在但没有 sort_order 列，则添加并初始化默认顺序
+            try:
+                self.cursor.execute("SELECT sort_order FROM game_terms LIMIT 1")
+            except Exception:
+                self.cursor.execute("ALTER TABLE game_terms ADD COLUMN sort_order INTEGER DEFAULT 0")
+                _profile_order = [
+                    ("profile_name", 1), ("profile_age", 2), ("profile_sex", 3),
+                    ("profile_char", 4), ("profile_look", 5), ("profile_height", 6),
+                    ("profile_family", 7), ("profile_job", 8), ("profile_bg", 9),
+                    ("profile_like", 10), ("profile_taboo", 11), ("profile_citizen", 12),
+                    ("profile_salary", 13), ("profile_group", 14), ("profile_note", 15),
+                ]
+                for _k, _o in _profile_order:
+                    self.cursor.execute("UPDATE game_terms SET sort_order=? WHERE key=?", (_o, _k))
+                print("[DB] game_terms 表已升级，添加 sort_order 字段")
 
             # 初始化默认术语 (检测是否已存在，不存在则插入)
             # 注意：我在这里增加了 profile_xxx 的字段

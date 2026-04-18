@@ -18,7 +18,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $category = trim($_POST['category'] ?? 'other');
         // 机器人约定：is_hidden=1 = 可见（默认），is_hidden=0 = 隐藏
         // 复选框"对玩家隐藏"勾选 → 存 0；不勾 → 存 1
-        $hidden   = isset($_POST['is_hidden']) ? 0 : 1;
+        $hidden     = isset($_POST['is_hidden']) ? 0 : 1;
+        $sort_order = intval($_POST['sort_order'] ?? 0);
         if (empty($key)) { $msg='键名不能为空'; $msg_type='danger'; }
         elseif ($is_add && strpos($key, 'profile_') !== 0) { $msg='新增术语键名必须以 profile_ 开头'; $msg_type='danger'; }
         else {
@@ -30,9 +31,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $exists = $db->prepare("SELECT COUNT(*) FROM game_terms WHERE key=?");
                 $exists->execute([$key]);
                 if ($exists->fetchColumn()) {
-                    $db->prepare("UPDATE game_terms SET text=?,category=?,is_hidden=? WHERE key=?")->execute([$text,$category,$hidden,$key]);
+                    $db->prepare("UPDATE game_terms SET text=?,category=?,is_hidden=?,sort_order=? WHERE key=?")->execute([$text,$category,$hidden,$sort_order,$key]);
                 } else {
-                    $db->prepare("INSERT INTO game_terms (key,text,category,is_hidden) VALUES (?,?,?,?)")->execute([$key,$text,$category,$hidden]);
+                    $db->prepare("INSERT INTO game_terms (key,text,category,is_hidden,sort_order) VALUES (?,?,?,?,?)")->execute([$key,$text,$category,$hidden,$sort_order]);
                 }
 
                 // ——— 自动同步存量数据（仅编辑且文字有变化时）———
@@ -174,6 +175,7 @@ require_once 'header.php';
         <th>中文显示名称</th>
         <th>分类</th>
         <th>对用户隐藏</th>
+        <th class="text-center">排序</th>
         <th class="pe-4">操作</th>
       </tr></thead>
       <tbody>
@@ -193,11 +195,14 @@ require_once 'header.php';
           <span class="text-success small"><i class="fas fa-eye me-1"></i>可见</span>
           <?php endif; ?>
         </td>
+        <td class="text-center text-muted small">
+          <?php echo $term['category']==='档案配置' ? intval($term['sort_order'] ?? 0) : '—'; ?>
+        </td>
         <td class="pe-4">
           <div class="d-flex gap-1">
             <?php if(can('game_terms','edit')): ?>
             <button class="btn btn-sm btn-outline-primary py-0 px-2"
-                    onclick="editTerm('<?php echo htmlspecialchars($term['key'],ENT_QUOTES); ?>','<?php echo htmlspecialchars($term['text'],ENT_QUOTES); ?>','<?php echo htmlspecialchars($term['category'],ENT_QUOTES); ?>',<?php echo intval($term['is_hidden']); ?>)">
+                    onclick="editTerm('<?php echo htmlspecialchars($term['key'],ENT_QUOTES); ?>','<?php echo htmlspecialchars($term['text'],ENT_QUOTES); ?>','<?php echo htmlspecialchars($term['category'],ENT_QUOTES); ?>',<?php echo intval($term['is_hidden']); ?>,<?php echo intval($term['sort_order'] ?? 0); ?>)">
               编辑
             </button>
             <?php endif; ?>
@@ -254,6 +259,10 @@ require_once 'header.php';
               <?php endforeach; ?>
             </select>
           </div>
+          <div class="mb-3" id="sortOrderRow">
+            <label class="form-label fw-semibold small">展示排序 <span class="text-muted fw-normal">（数字越小越靠前，0 = 按添加顺序）</span></label>
+            <input type="number" class="form-control" name="sort_order" id="termSortOrder" value="0" min="0" style="width:120px">
+          </div>
           <div class="form-check">
             <input class="form-check-input" type="checkbox" name="is_hidden" value="1" id="termHidden">
             <label class="form-check-label">对玩家隐藏（不在角色档案中展示）</label>
@@ -283,6 +292,7 @@ function clearTermForm(){
   document.getElementById('termText').value = '';
   document.getElementById('termKeySuffix').value = '';
   document.getElementById('termKeyFinal').value = '';
+  document.getElementById('termSortOrder').value = '0';
   // 新增模式：显示 profile_ 前缀输入组
   document.getElementById('keyAddGroup').style.display = '';
   document.getElementById('termKeySuffix').required = true;
@@ -292,12 +302,14 @@ function clearTermForm(){
   document.getElementById('keyEditNote').style.display = 'none';
   document.getElementById('termCat').value = '档案配置';
   document.getElementById('termHidden').checked = false;
+  document.getElementById('sortOrderRow').style.display = '';
   document.getElementById('termModalTitle').textContent = '新增档案字段';
 }
-function editTerm(key,text,cat,hidden){
+function editTerm(key,text,cat,hidden,sortOrder){
   document.getElementById('origKey').value = key;
   document.getElementById('termKeyFinal').value = key;
   document.getElementById('termText').value = text;
+  document.getElementById('termSortOrder').value = sortOrder || 0;
   // 编辑模式：显示自由编辑输入框
   document.getElementById('keyAddGroup').style.display = 'none';
   document.getElementById('termKeySuffix').required = false;
@@ -308,6 +320,8 @@ function editTerm(key,text,cat,hidden){
   document.getElementById('keyEditNote').style.display = '';
   document.getElementById('termCat').value = cat || 'other';
   document.getElementById('termHidden').checked = hidden == 0;
+  // 仅档案字段显示排序输入
+  document.getElementById('sortOrderRow').style.display = (cat === '档案配置') ? '' : 'none';
   document.getElementById('termModalTitle').textContent = '编辑术语';
   new bootstrap.Modal(document.getElementById('termModal')).show();
 }
