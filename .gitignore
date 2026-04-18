@@ -2,3 +2,7 @@
 __pycache__/
 *.pyc
 *.db
+
+# 自动部署脚本（含服务器路径和密钥，不提交到公开仓库）
+fanlong-admin-lite/webhook.php
+fanlong-admin-lite/deploy.log
