@@ -207,12 +207,9 @@ require_once 'header.php';
             </button>
             <?php endif; ?>
             <?php if(can('game_terms','delete')): ?>
-            <form method="POST" style="display:inline" onsubmit="return confirm('确认删除术语「<?php echo htmlspecialchars($term['key']); ?>」？')">
-              <input type="hidden" name="action" value="delete">
-              <input type="hidden" name="del_key" value="<?php echo htmlspecialchars($term['key']); ?>">
-              <button class="btn btn-sm btn-outline-danger py-0 px-2"
-                    title="<?php echo strpos($term['key'],'profile_')===0 ? '自定义档案字段，可永久删除' : '内置术语，删除后机器人重启时将自动恢复'; ?>">删除</button>
-            </form>
+            <button class="btn btn-sm btn-outline-danger py-0 px-2"
+                    title="<?php echo strpos($term['key'],'profile_')===0 ? '档案字段：机器人内置的 profile_ 删除后重启将恢复，自行新增的字段将永久删除' : '内置术语，删除后机器人重启时将自动恢复'; ?>"
+                    onclick="confirmDeleteTerm('<?php echo htmlspecialchars($term['key'],ENT_QUOTES); ?>')">删除</button>
             <?php endif; ?>
           </div>
         </td>
@@ -327,6 +324,40 @@ function editTerm(key,text,cat,hidden,sortOrder){
   document.getElementById('termModalTitle').textContent = '编辑术语';
   new bootstrap.Modal(document.getElementById('termModal')).show();
 }
+
+
+function confirmDeleteTerm(key) {
+  document.getElementById('deleteTermModalKey').textContent = '「' + key + '」';
+  document.getElementById('deleteTermConfirmBtn').onclick = function() {
+    document.getElementById('deleteTermKey').value = key;
+    document.getElementById('deleteTermForm').submit();
+  };
+  new bootstrap.Modal(document.getElementById('deleteTermModal')).show();
+}
 </script>
+
+<!-- 术语删除确认弹窗 -->
+<div class="modal fade" id="deleteTermModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content rounded-4">
+      <div class="modal-header border-0 pb-1">
+        <h6 class="modal-title fw-bold text-danger"><i class="fas fa-triangle-exclamation me-2"></i>确认删除</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body py-2 small">
+        确认删除术语 <strong id="deleteTermModalKey"></strong>？<br>
+        <span class="text-muted">内置术语机器人重启后将自动恢复；自行新增的 profile_ 字段将永久删除。</span>
+      </div>
+      <div class="modal-footer border-0 pt-1">
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-sm btn-danger" id="deleteTermConfirmBtn">确认删除</button>
+      </div>
+    </div>
+  </div>
+</div>
+<form id="deleteTermForm" method="POST" style="display:none">
+  <input type="hidden" name="action" value="delete">
+  <input type="hidden" name="del_key" id="deleteTermKey" value="">
+</form>
 
 <?php require_once 'footer.php'; ?>

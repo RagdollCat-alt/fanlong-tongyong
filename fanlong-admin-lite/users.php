@@ -562,10 +562,19 @@ $profile_extra_arr = array_diff_key($profile_data, array_flip($known_labels));
             <?php foreach($profile_term_fields as $pf): ?>
             <div class="col-md-4 col-sm-6">
               <label class="form-label small text-muted mb-1"><?php echo htmlspecialchars($pf['text']); ?></label>
+              <?php if($pf['key'] === 'profile_name'): ?>
+              <input type="text" class="form-control form-control-sm text-muted"
+                     name="profile_fields[<?php echo htmlspecialchars($pf['text']); ?>]"
+                     id="profileNameSyncField"
+                     value="<?php echo htmlspecialchars($edit_user['name'] ?? ''); ?>"
+                     readonly title="与上方角色名保持一致">
+              <div class="form-text mt-0">与上方「角色名」一致</div>
+              <?php else: ?>
               <input type="text" class="form-control form-control-sm"
                      name="profile_fields[<?php echo htmlspecialchars($pf['text']); ?>]"
                      value="<?php echo htmlspecialchars($profile_data[$pf['text']] ?? ''); ?>"
                      placeholder="<?php echo htmlspecialchars($pf['text']); ?>">
+              <?php endif; ?>
             </div>
             <?php endforeach; ?>
             </div>
@@ -586,6 +595,16 @@ $profile_extra_arr = array_diff_key($profile_data, array_flip($known_labels));
     </form>
   </div>
 </div>
+<script>
+// 角色名修改时同步档案姓名只读字段
+(function(){
+  var nameInput = document.querySelector('input[name="name"]');
+  var pfName    = document.getElementById('profileNameSyncField');
+  if (nameInput && pfName) {
+    nameInput.addEventListener('input', function(){ pfName.value = this.value; });
+  }
+})();
+</script>
 <?php endif; ?>
 
 <?php require_once 'footer.php'; ?>

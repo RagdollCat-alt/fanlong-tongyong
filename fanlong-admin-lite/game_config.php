@@ -120,17 +120,39 @@ require_once 'header.php';
   <?php endforeach; ?>
 </form>
 
-<!-- 独立删除表单（不嵌套在 batchForm 内，避免 HTML 嵌套表单问题）-->
+<!-- 独立删除表单 -->
 <form id="deleteConfigForm" method="POST" style="display:none">
   <input type="hidden" name="action" value="delete">
   <input type="hidden" name="del_key" id="deleteConfigKey" value="">
 </form>
+
+<!-- 删除确认弹窗 -->
+<div class="modal fade" id="deleteConfigModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content rounded-4">
+      <div class="modal-header border-0 pb-1">
+        <h6 class="modal-title fw-bold text-danger"><i class="fas fa-triangle-exclamation me-2"></i>确认删除</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body py-2 small">
+        确认删除配置 <strong id="deleteConfigModalKey"></strong>？<br>
+        <span class="text-muted">此操作不可恢复。</span>
+      </div>
+      <div class="modal-footer border-0 pt-1">
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-sm btn-danger" id="deleteConfigConfirmBtn">确认删除</button>
+      </div>
+    </div>
+  </div>
+</div>
 <script>
 function confirmDeleteConfig(key) {
-  if (confirm('确认删除配置「' + key + '」？')) {
+  document.getElementById('deleteConfigModalKey').textContent = '「' + key + '」';
+  document.getElementById('deleteConfigConfirmBtn').onclick = function() {
     document.getElementById('deleteConfigKey').value = key;
     document.getElementById('deleteConfigForm').submit();
-  }
+  };
+  new bootstrap.Modal(document.getElementById('deleteConfigModal')).show();
 }
 </script>
 

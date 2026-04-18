@@ -6,21 +6,11 @@ requirePermission('system_vars','view');
 $db = getDB();
 $msg=''; $msg_type='';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    requirePermission('system_vars','edit');
-    $key   = trim($_POST['key']   ?? '');
-    $value = trim($_POST['value'] ?? '');
-    if (!empty($key)) {
-        $old=$db->prepare("SELECT value FROM system_vars WHERE key=?"); $old->execute([$key]); $old_val=$old->fetchColumn();
-        $db->prepare("INSERT OR REPLACE INTO system_vars (key,value) VALUES (?,?)")->execute([$key,$value]);
-        logAction('system_vars','update',$key,['value'=>$old_val],['value'=>$value]);
-        setFlash('success','系统变量 '.$key.' 已更新');
-        header('Location: system_vars.php'); exit();
-    }
-}
+// 自动升级：为 system_vars 添加 desc 列
+try { $db->query("SELECT desc FROM system_vars LIMIT 1"); }
+catch(Exception $e) { $db->exec("ALTER TABLE system_vars ADD COLUMN desc TEXT DEFAULT ''"); }
 
-$vars = $db->query("SELECT key, value FROM system_vars ORDER BY key")->fetchAll();
-
+// 内置说明默认值（仅在 desc 为空时填入）
 $VAR_DESCRIPTIONS = [
     'db_version'           => '数据库结构版本号，升级时自动递增，请勿手动修改',
     'init_done'            => '初始化完成标记（1 = 已完成首次建库）',
@@ -30,6 +20,25 @@ $VAR_DESCRIPTIONS = [
     'shop_refresh_date'    => '上次商店刷新日期',
     'total_signed_today'   => '今日签到人数（每日重置清零）',
 ];
+foreach ($VAR_DESCRIPTIONS as $k => $d) {
+    $db->prepare("UPDATE system_vars SET desc=? WHERE key=? AND (desc IS NULL OR desc='')")->execute([$d, $k]);
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requirePermission('system_vars','edit');
+    $key   = trim($_POST['key']   ?? '');
+    $value = trim($_POST['value'] ?? '');
+    $desc  = trim($_POST['desc']  ?? '');
+    if (!empty($key)) {
+        $old=$db->prepare("SELECT value FROM system_vars WHERE key=?"); $old->execute([$key]); $old_val=$old->fetchColumn();
+        $db->prepare("UPDATE system_vars SET value=?, desc=? WHERE key=?")->execute([$value, $desc, $key]);
+        logAction('system_vars','update',$key,['value'=>$old_val],['value'=>$value]);
+        setFlash('success','系统变量 '.$key.' 已更新');
+        header('Location: system_vars.php'); exit();
+    }
+}
+
+$vars = $db->query("SELECT key, value, COALESCE(desc,'') AS desc FROM system_vars ORDER BY key")->fetchAll();
 
 $page_title='系统变量'; $page_icon='fas fa-terminal'; $page_subtitle='全局系统变量';
 require_once 'header.php';
@@ -62,11 +71,11 @@ require_once 'header.php';
             <?php echo htmlspecialchars(strlen($v['value'])>80?substr($v['value'],0,80).'...':$v['value']); ?>
           </span>
         </td>
-        <td class="text-muted small"><?php echo htmlspecialchars($VAR_DESCRIPTIONS[$v['key']] ?? '—'); ?></td>
+        <td class="text-muted small"><?php echo $v['desc'] !== '' ? htmlspecialchars($v['desc']) : '<span class="text-muted opacity-50">—</span>'; ?></td>
         <td class="pe-4">
           <?php if(can('system_vars','edit')): ?>
           <button class="btn btn-sm btn-outline-primary py-0 px-2"
-                  onclick="editVar('<?php echo htmlspecialchars($v['key'],ENT_QUOTES); ?>','<?php echo htmlspecialchars($v['value'],ENT_QUOTES); ?>')">
+                  onclick="editVar('<?php echo htmlspecialchars($v['key'],ENT_QUOTES); ?>','<?php echo htmlspecialchars($v['value'],ENT_QUOTES); ?>','<?php echo htmlspecialchars($v['desc'],ENT_QUOTES); ?>')">
             编辑
           </button>
           <?php endif; ?>
@@ -97,7 +106,11 @@ require_once 'header.php';
           </div>
           <div class="mb-3">
             <label class="form-label fw-semibold small">值</label>
-            <textarea class="form-control font-monospace" name="value" id="varValue" rows="6"></textarea>
+            <textarea class="form-control font-monospace" name="value" id="varValue" rows="5"></textarea>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold small">备注说明 <span class="text-muted fw-normal">（仅管理员可见，方便记录用途）</span></label>
+            <input type="text" class="form-control" name="desc" id="varDesc" placeholder="可留空">
           </div>
         </div>
         <div class="modal-footer border-0">
@@ -109,9 +122,10 @@ require_once 'header.php';
   </div>
 </div>
 <script>
-function editVar(key, value) {
+function editVar(key, value, desc) {
   document.getElementById('varKey').value   = key;
   document.getElementById('varValue').value = value;
+  document.getElementById('varDesc').value  = desc || '';
   new bootstrap.Modal(document.getElementById('varModal')).show();
 }
 </script>
