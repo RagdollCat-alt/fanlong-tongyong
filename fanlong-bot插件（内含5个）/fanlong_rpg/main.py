@@ -449,45 +449,26 @@ def generate_profile(user):
     p = user["profile"]
     stats_str = p.get("属性", "")
 
-    # 定义所有档案字段顺序（key, 显示标签）
-    field_keys = [
-        "profile_name", "profile_age", "profile_sex", "profile_char", "profile_look",
-        "profile_height", "profile_family", "profile_job", "profile_bg",
-        "profile_like", "profile_taboo", "profile_salary", "profile_group", "profile_note"
-    ]
-
-    # 收集可见字段
     lines = []
     lines.append(f"〖{user['name']} 的档案〗")
 
-    for key in field_keys:
-        # 跳过不可见字段 (is_hidden=0)
-        if not Terms.is_visible(key):
-            continue
+    # 从数据库动态读取所有可见档案字段（按录入顺序展示，支持后台自定义新增）
+    profile_rows = DB.query(
+        "SELECT key, text FROM game_terms WHERE key LIKE 'profile_%' AND is_hidden=1 ORDER BY rowid"
+    )
 
-        # 获取显示标签名（从 Terms 获取最新的 text）
-        label = Terms.get(key)
-
-        # 获取值（尝试多个可能的键名，兼容旧数据）
-        value = ""
-        # 先用当前 Terms 的 text 查找
+    for key, label in profile_rows:
         value = p.get(label, "")
-        # 如果找不到，尝试数据库中可能存在的旧值（如"职位"、"官职"等）
+        # 兼容旧数据中可能存在的不同标签名
         if not value:
-            # 常见的字段名变体
             if key == "profile_job":
                 value = p.get("职位") or p.get("官职") or ""
             elif key == "profile_citizen":
                 value = p.get("户籍") or p.get("籍贯") or ""
-            # 可以继续添加其他字段的兼容逻辑...
-
         # 特殊处理：姓名直接用 user['name']
         if key == "profile_name":
             value = user['name']
-
-        # 显示格式：字段名：值（如果值为空，只显示"字段名："）
-        display_value = value if value else ""
-        lines.append(f"{label}：{display_value}")
+        lines.append(f"{label}：{value}")
 
     # 添加属性字段（如果不为空且可见）
     if stats_str and stats_str.strip() and Terms.is_visible("stat_attr"):

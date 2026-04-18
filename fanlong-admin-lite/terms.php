@@ -20,7 +20,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // 复选框"对玩家隐藏"勾选 → 存 0；不勾 → 存 1
         $hidden   = isset($_POST['is_hidden']) ? 0 : 1;
         if (empty($key)) { $msg='键名不能为空'; $msg_type='danger'; }
+        elseif ($is_add && strpos($key, 'profile_') !== 0) { $msg='新增术语键名必须以 profile_ 开头'; $msg_type='danger'; }
         else {
+            if ($is_add) $category = '档案配置';
             try {
                 $old = null;
                 if (!$is_add) { $r=$db->prepare("SELECT * FROM game_terms WHERE key=?"); $r->execute([$_POST['orig_key']]); $old=$r->fetch(); }
@@ -229,8 +231,16 @@ require_once 'header.php';
         <div class="modal-body">
           <div class="mb-3">
             <label class="form-label fw-semibold small">键名 <span class="text-danger">*</span> <span class="text-muted fw-normal">(代码中使用的英文标识)</span></label>
-            <input type="text" class="form-control font-monospace" name="key" id="termKey" required placeholder="如：stat_face">
-            <div class="form-text">命名规范：属性用 stat_、槽位用 slot_、档案用 profile_、货币用 term_</div>
+            <input type="hidden" name="key" id="termKeyFinal">
+            <!-- 新增模式：固定 profile_ 前缀 -->
+            <div id="keyAddGroup" class="input-group">
+              <span class="input-group-text font-monospace text-muted bg-light">profile_</span>
+              <input type="text" class="form-control font-monospace" id="termKeySuffix" placeholder="如：hometown" oninput="syncTermKey()">
+            </div>
+            <!-- 编辑模式：自由编辑 -->
+            <input type="text" class="form-control font-monospace" id="termKeyEdit" style="display:none" placeholder="如：stat_face" oninput="syncTermKey()">
+            <div class="form-text text-info" id="keyAddNote"><i class="fas fa-info-circle me-1"></i>目前仅支持新增「档案字段」(<code>profile_</code>)，属性/槽位/货币等字段须在代码中配置。</div>
+            <div class="form-text" id="keyEditNote" style="display:none">命名规范：属性用 stat_、槽位用 slot_、档案用 profile_、货币用 term_</div>
           </div>
           <div class="mb-3">
             <label class="form-label fw-semibold small">中文显示名称</label>
@@ -259,18 +269,45 @@ require_once 'header.php';
 </div>
 
 <script>
+function syncTermKey(){
+  const isAdd = !document.getElementById('origKey').value;
+  if(isAdd){
+    const s = document.getElementById('termKeySuffix').value.trim();
+    document.getElementById('termKeyFinal').value = s ? 'profile_' + s : '';
+  } else {
+    document.getElementById('termKeyFinal').value = document.getElementById('termKeyEdit').value.trim();
+  }
+}
 function clearTermForm(){
-  ['origKey','termKey','termText'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('termCat').value='other';
-  document.getElementById('termHidden').checked=false;
-  document.getElementById('termModalTitle').textContent='新增术语';
+  document.getElementById('origKey').value = '';
+  document.getElementById('termText').value = '';
+  document.getElementById('termKeySuffix').value = '';
+  document.getElementById('termKeyFinal').value = '';
+  // 新增模式：显示 profile_ 前缀输入组
+  document.getElementById('keyAddGroup').style.display = '';
+  document.getElementById('termKeySuffix').required = true;
+  document.getElementById('termKeyEdit').style.display = 'none';
+  document.getElementById('termKeyEdit').required = false;
+  document.getElementById('keyAddNote').style.display = '';
+  document.getElementById('keyEditNote').style.display = 'none';
+  document.getElementById('termCat').value = '档案配置';
+  document.getElementById('termHidden').checked = false;
+  document.getElementById('termModalTitle').textContent = '新增档案字段';
 }
 function editTerm(key,text,cat,hidden){
-  document.getElementById('origKey').value  = key;
-  document.getElementById('termKey').value  = key;
+  document.getElementById('origKey').value = key;
+  document.getElementById('termKeyFinal').value = key;
   document.getElementById('termText').value = text;
-  document.getElementById('termCat').value  = cat || 'other';
-  document.getElementById('termHidden').checked = hidden == 0; // is_hidden=0 = 隐藏，所以勾选
+  // 编辑模式：显示自由编辑输入框
+  document.getElementById('keyAddGroup').style.display = 'none';
+  document.getElementById('termKeySuffix').required = false;
+  document.getElementById('termKeyEdit').style.display = '';
+  document.getElementById('termKeyEdit').value = key;
+  document.getElementById('termKeyEdit').required = true;
+  document.getElementById('keyAddNote').style.display = 'none';
+  document.getElementById('keyEditNote').style.display = '';
+  document.getElementById('termCat').value = cat || 'other';
+  document.getElementById('termHidden').checked = hidden == 0;
   document.getElementById('termModalTitle').textContent = '编辑术语';
   new bootstrap.Modal(document.getElementById('termModal')).show();
 }
