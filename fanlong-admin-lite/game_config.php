@@ -73,7 +73,6 @@ require_once 'header.php';
   <div class="d-flex gap-2">
     <?php if(can('game_config','edit')): ?>
     <button class="btn btn-sm btn-outline-success" type="submit" form="batchForm"><i class="fas fa-save me-1"></i>批量保存</button>
-    <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addConfigModal"><i class="fas fa-plus me-1"></i>新增配置</button>
     <?php endif; ?>
   </div>
 </div>
@@ -120,39 +119,6 @@ require_once 'header.php';
   </div>
   <?php endforeach; ?>
 </form>
-
-<!-- 新增配置弹窗 -->
-<div class="modal fade" id="addConfigModal" tabindex="-1">
-  <div class="modal-dialog">
-    <div class="modal-content rounded-4">
-      <div class="modal-header border-0">
-        <h5 class="modal-title fw-bold">新增配置项</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <form method="POST">
-        <input type="hidden" name="action" value="save_single">
-        <div class="modal-body">
-          <div class="mb-3">
-            <label class="form-label fw-semibold small">配置键 *</label>
-            <input type="text" class="form-control font-monospace" name="key" required placeholder="如：daily_train_limit">
-          </div>
-          <div class="mb-3">
-            <label class="form-label fw-semibold small">值</label>
-            <input type="text" class="form-control font-monospace" name="value" placeholder="配置值">
-          </div>
-          <div class="mb-3">
-            <label class="form-label fw-semibold small">说明</label>
-            <input type="text" class="form-control" name="desc" placeholder="配置说明（选填）">
-          </div>
-        </div>
-        <div class="modal-footer border-0">
-          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
-          <button type="submit" class="btn btn-primary px-4">保存</button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
 
 <!-- 独立删除表单（不嵌套在 batchForm 内，避免 HTML 嵌套表单问题）-->
 <form id="deleteConfigForm" method="POST" style="display:none">

@@ -44,6 +44,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit();
     }
 
+    // 下载原始 .db 文件
+    if ($pa === 'export_db') {
+        if (!file_exists(DB_PATH)) { $msg='数据库文件不存在'; $msg_type='danger'; }
+        else {
+            logAction('backup','execute','export_db');
+            header('Content-Type: application/octet-stream');
+            header('Content-Disposition: attachment; filename="fanlong_'.date('Ymd_His').'.db"');
+            header('Content-Length: ' . filesize(DB_PATH));
+            readfile(DB_PATH);
+            exit();
+        }
+    }
+
     // 导出单张表为 CSV
     if ($pa === 'export_csv') {
         $tbl = $_POST['table'] ?? '';
@@ -104,7 +117,7 @@ require_once 'header.php';
 
 <div class="row g-4">
   <!-- 全量备份 -->
-  <div class="col-lg-6">
+  <div class="col-lg-4">
     <div class="card">
       <div class="card-header"><i class="fas fa-download me-2"></i>全量备份（SQL 格式）</div>
       <div class="card-body">
@@ -119,8 +132,24 @@ require_once 'header.php';
     </div>
   </div>
 
+  <!-- 下载原始 .db 文件 -->
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header"><i class="fas fa-database me-2"></i>下载数据库文件（.db）</div>
+      <div class="card-body">
+        <p class="text-muted small">直接下载 SQLite 原始数据库文件，可用 DB Browser for SQLite 打开查看。</p>
+        <form method="POST">
+          <input type="hidden" name="action" value="export_db">
+          <button type="submit" class="btn btn-outline-primary">
+            <i class="fas fa-database me-2"></i>下载 .db 文件
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <!-- 单表 CSV 导出 -->
-  <div class="col-lg-6">
+  <div class="col-lg-4">
     <div class="card">
       <div class="card-header"><i class="fas fa-file-csv me-2"></i>单表导出（CSV 格式）</div>
       <div class="card-body">

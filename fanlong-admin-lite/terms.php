@@ -210,7 +210,8 @@ require_once 'header.php';
             <form method="POST" style="display:inline" onsubmit="return confirm('确认删除术语「<?php echo htmlspecialchars($term['key']); ?>」？')">
               <input type="hidden" name="action" value="delete">
               <input type="hidden" name="del_key" value="<?php echo htmlspecialchars($term['key']); ?>">
-              <button class="btn btn-sm btn-outline-danger py-0 px-2">删除</button>
+              <button class="btn btn-sm btn-outline-danger py-0 px-2"
+                    title="<?php echo strpos($term['key'],'profile_')===0 ? '自定义档案字段，可永久删除' : '内置术语，删除后机器人重启时将自动恢复'; ?>">删除</button>
             </form>
             <?php endif; ?>
           </div>

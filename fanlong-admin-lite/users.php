@@ -20,8 +20,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $uid      = trim($_POST['uid']      ?? '');
         $name     = trim($_POST['name']     ?? '');
         $currency = trim($_POST['currency'] ?? '{}');
-        $profile  = trim($_POST['profile']  ?? '{}');
         $limits   = trim($_POST['limits']   ?? '{}');
+
+        // 档案：优先从独立表单字段重建 JSON，回退到原始 JSON 文本框
+        if (isset($_POST['profile_fields']) && is_array($_POST['profile_fields'])) {
+            $pro_extra = safeJsonDecode($_POST['profile_extra'] ?? '{}');
+            foreach ($_POST['profile_fields'] as $fname => $fval) {
+                $fval = trim($fval);
+                if ($fval !== '') $pro_extra[$fname] = $fval;
+                else unset($pro_extra[$fname]);
+            }
+            $profile = json_encode($pro_extra, JSON_UNESCAPED_UNICODE);
+        } else {
+            $profile = trim($_POST['profile'] ?? '{}');
+        }
 
         // 验证JSON
         $cur_arr = safeJsonDecode($currency);
@@ -497,6 +509,16 @@ foreach ($stat_fields as $sf) { if (($equip_bonus[$sf]??0) != 0) { $has_bonus = 
 </div>
 
 <?php elseif (in_array($action, ['edit','add'])): ?>
+<?php
+// 从 game_terms 读取所有档案字段（按 sort_order 排序）
+$profile_term_fields = $db->query(
+    "SELECT key, text FROM game_terms WHERE key LIKE 'profile_%' AND is_hidden=1 ORDER BY sort_order, rowid"
+)->fetchAll();
+$profile_data = safeJsonDecode($edit_user['profile'] ?? '{}');
+// 计算 profile_extra：去掉已有 term 对应的键，保留多余键（用于 hidden 字段保存）
+$known_labels = array_column($profile_term_fields, 'text');
+$profile_extra_arr = array_diff_key($profile_data, array_flip($known_labels));
+?>
 <!-- ===== 新增/编辑 ===== -->
 <div class="card">
   <div class="card-header d-flex justify-content-between align-items-center">
@@ -525,15 +547,36 @@ foreach ($stat_fields as $sf) { if (($equip_bonus[$sf]??0) != 0) { $has_bonus = 
         <div class="col-md-4">
           <label class="form-label fw-semibold small">货币 <span class="text-muted">(JSON)</span></label>
           <textarea class="form-control font-monospace" name="currency" rows="3"><?php echo htmlspecialchars($edit_user['currency']??'{}'); ?></textarea>
-          <div class="form-text">格式：{"虞元": 100, "名誉": 50}</div>
-        </div>
-        <div class="col-md-4">
-          <label class="form-label fw-semibold small">档案 <span class="text-muted">(JSON)</span></label>
-          <textarea class="form-control font-monospace" name="profile" rows="3"><?php echo htmlspecialchars($edit_user['profile']??'{}'); ?></textarea>
+          <div class="form-text">格式：{"yuCoin": 100, "reputation": 50}</div>
         </div>
         <div class="col-md-4">
           <label class="form-label fw-semibold small">每日限制 <span class="text-muted">(JSON)</span></label>
           <textarea class="form-control font-monospace" name="limits" rows="3"><?php echo htmlspecialchars($edit_user['limits']??'{}'); ?></textarea>
+        </div>
+        <div class="col-12">
+          <label class="form-label fw-semibold small">角色档案</label>
+          <input type="hidden" name="profile_extra" value="<?php echo htmlspecialchars(json_encode($profile_extra_arr, JSON_UNESCAPED_UNICODE)); ?>">
+          <?php if(!empty($profile_term_fields)): ?>
+          <div class="border rounded-3 p-3 bg-light">
+            <div class="row g-2">
+            <?php foreach($profile_term_fields as $pf): ?>
+            <div class="col-md-4 col-sm-6">
+              <label class="form-label small text-muted mb-1"><?php echo htmlspecialchars($pf['text']); ?></label>
+              <input type="text" class="form-control form-control-sm"
+                     name="profile_fields[<?php echo htmlspecialchars($pf['text']); ?>]"
+                     value="<?php echo htmlspecialchars($profile_data[$pf['text']] ?? ''); ?>"
+                     placeholder="<?php echo htmlspecialchars($pf['text']); ?>">
+            </div>
+            <?php endforeach; ?>
+            </div>
+            <?php if(!empty($profile_extra_arr)): ?>
+            <div class="mt-2 text-muted small"><i class="fas fa-info-circle me-1"></i>以下字段无对应术语配置，将原样保留：<?php echo htmlspecialchars(implode('、', array_keys($profile_extra_arr))); ?></div>
+            <?php endif; ?>
+          </div>
+          <?php else: ?>
+          <textarea class="form-control font-monospace" name="profile" rows="3"><?php echo htmlspecialchars($edit_user['profile']??'{}'); ?></textarea>
+          <div class="form-text">未配置 profile_ 术语，以 JSON 格式填写</div>
+          <?php endif; ?>
         </div>
       </div>
       <div class="d-flex gap-2">
