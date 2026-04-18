@@ -335,6 +335,55 @@ if ($equip_row) {
 // has_bonus：只看可见属性有无加成
 $has_bonus = false;
 foreach ($stat_fields as $sf) { if (($equip_bonus[$sf]??0) != 0) { $has_bonus = true; break; } }
+
+$profile_term_fields = $db->query(
+    "SELECT key, text, is_hidden FROM game_terms WHERE key LIKE 'profile_%' ORDER BY sort_order, rowid"
+)->fetchAll();
+$profile_default_labels = [
+    'profile_name' => '姓名', 'profile_age' => '年龄', 'profile_sex' => '性别',
+    'profile_char' => '性格', 'profile_look' => '外貌', 'profile_height' => '身高',
+    'profile_family' => '家世', 'profile_job' => '职位', 'profile_bg' => '背景',
+    'profile_like' => '喜恶', 'profile_taboo' => '禁忌', 'profile_citizen' => '户籍',
+    'profile_salary' => '薪资', 'profile_group' => '隶属', 'profile_note' => '备注',
+];
+$profile_display_rows = [];
+$profile_used_keys = [];
+foreach ($profile_term_fields as $pf) {
+    $suffix = substr($pf['key'], 8);
+    $candidates = array_values(array_unique(array_filter([
+        $pf['text'],
+        $profile_default_labels[$pf['key']] ?? null,
+        $suffix,
+        $pf['key'],
+    ])));
+    $has_value = false;
+    $value = '';
+    foreach ($candidates as $candidate) {
+        if (array_key_exists($candidate, $prof)) {
+            $value = $prof[$candidate];
+            $profile_used_keys[$candidate] = true;
+            $has_value = true;
+            break;
+        }
+    }
+    if ($pf['key'] === 'profile_name' && !$has_value) {
+        $value = $edit_user['name'] ?? '';
+        $has_value = true;
+    }
+    $profile_display_rows[] = [
+        'label' => $pf['text'],
+        'value' => $value,
+        'visible' => intval($pf['is_hidden'] ?? 1),
+    ];
+}
+foreach ($prof as $k => $v) {
+    if (isset($profile_used_keys[$k])) continue;
+    $profile_display_rows[] = [
+        'label' => tAuto($k, $k),
+        'value' => $v,
+        'visible' => (getProfileFieldsVisibility()[$k] ?? 1),
+    ];
+}
 ?>
 <div class="d-flex justify-content-between align-items-center mb-4">
   <div></div>
@@ -484,17 +533,13 @@ foreach ($stat_fields as $sf) { if (($equip_bonus[$sf]??0) != 0) { $has_bonus = 
     <div class="card">
       <div class="card-header"><i class="fas fa-file-lines me-2"></i>档案信息</div>
       <div class="card-body">
-        <?php
-        $_prof_vis = getProfileFieldsVisibility();
-        foreach($prof as $k=>$v):
-            $_label   = tAuto($k, $k);
-            // is_hidden: 1=可见, 0=隐藏；若 term 不存在则默认可见
-            // 先按原始键 $k 查（中文键/英文后缀都能命中），再按翻译后标签查
-            $_visible = $_prof_vis[$k] ?? $_prof_vis[$_label] ?? 1;
+        <?php foreach($profile_display_rows as $_row):
+            $_visible = $_row['visible'];
+            $v = $_row['value'];
         ?>
         <div class="d-flex justify-content-between align-items-center border-bottom pb-1 mb-1 small <?php echo !$_visible ? 'opacity-50' : ''; ?>">
           <span class="text-muted d-flex align-items-center gap-1">
-            <?php echo htmlspecialchars($_label); ?>
+            <?php echo htmlspecialchars($_row['label']); ?>
             <?php if(!$_visible): ?>
             <span class="badge text-bg-warning" style="font-size:.65rem;font-weight:500">对玩家隐藏</span>
             <?php endif; ?>
@@ -502,7 +547,7 @@ foreach ($stat_fields as $sf) { if (($equip_bonus[$sf]??0) != 0) { $has_bonus = 
           <span><?php echo htmlspecialchars(is_array($v)?json_encode($v,JSON_UNESCAPED_UNICODE):strval($v)); ?></span>
         </div>
         <?php endforeach; ?>
-        <?php if(empty($prof)): ?><p class="text-muted small mb-0">档案为空</p><?php endif; ?>
+        <?php if(empty($profile_display_rows)): ?><p class="text-muted small mb-0">档案为空</p><?php endif; ?>
       </div>
     </div>
   </div>

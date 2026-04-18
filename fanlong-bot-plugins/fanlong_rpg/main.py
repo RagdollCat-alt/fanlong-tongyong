@@ -109,28 +109,70 @@ def load_items():
         # 🟢 SQL 增加读取 stock_qty (第14列，索引14)
         sql = "SELECT name, price, currency, type, slot, desc, stats, effect, is_selling, condition, max_hold, compound_recipe, sub_type, param, stock_qty FROM items"
         rows = DB.query(sql)
-        
-        standard_names = {k: Terms.get(k) for k in KEY_MAP["stats"]}
-        standard_names["reputation"] = Terms.get("term_reputation")
-        standard_names["yuCoin"] = Terms.get("term_yuCoin")
+
+        def _same_key(left, right):
+            return str(left).replace("/", "_") == str(right).replace("/", "_")
+
+        def _normalize_bonus_map(raw_data):
+            stat_defaults = {
+                "stat_face": "颜值", "stat_charm": "魅力", "stat_intel": "智力", "stat_biz": "商业",
+                "stat_talk": "口才", "stat_body": "体能", "stat_art": "才艺", "stat_obed": "服从_威慑",
+            }
+            stat_aliases = {"全部属性", "全属性", "所有属性", "all_stats", "all_stat", "all_attrs", "all_attr"}
+            currency_aliases = {"全部货币", "全货币", "所有货币", "all_currency", "all_currencies", "all_money"}
+            yu_aliases = {"yuCoin", "yuyuan", Terms.get("term_yuCoin"), "虞元", "金币"}
+            rep_aliases = {"reputation", Terms.get("term_reputation"), "名誉"}
+            fixed = {}
+
+            def add_bonus(target_key, amount):
+                if isinstance(amount, (int, float)) and isinstance(fixed.get(target_key), (int, float)):
+                    fixed[target_key] += amount
+                else:
+                    fixed[target_key] = amount
+
+            for raw_key, value in (raw_data or {}).items():
+                matched = False
+
+                if raw_key in stat_aliases:
+                    for stat_key in KEY_MAP["stats"]:
+                        add_bonus(Terms.get(stat_key), value)
+                    continue
+
+                if raw_key in currency_aliases:
+                    add_bonus(Terms.get("term_yuCoin"), value)
+                    add_bonus(Terms.get("term_reputation"), value)
+                    continue
+
+                if raw_key in yu_aliases:
+                    add_bonus(Terms.get("term_yuCoin"), value)
+                    continue
+
+                if raw_key in rep_aliases:
+                    add_bonus(Terms.get("term_reputation"), value)
+                    continue
+
+                for stat_key in KEY_MAP["stats"]:
+                    current_cn = Terms.get(stat_key)
+                    default_cn = stat_defaults.get(stat_key, "")
+                    if raw_key == stat_key or _same_key(raw_key, current_cn) or _same_key(raw_key, default_cn):
+                        add_bonus(current_cn, value)
+                        matched = True
+                        break
+
+                if not matched:
+                    add_bonus(raw_key, value)
+
+            return fixed
 
         for r in rows:
             name = r[0]
             raw_stats = json.loads(r[6]) if r[6] else {}
-            
-            fixed_stats = {}
-            for old_k, v in raw_stats.items():
-                matched = False
-                for internal_key, current_cn in standard_names.items():
-                    if old_k == current_cn or old_k.replace("/", "_") == current_cn.replace("/", "_"):
-                        fixed_stats[current_cn] = v
-                        matched = True
-                        break
-                if not matched: fixed_stats[old_k] = v
 
             ITEM_DB[name] = {
                 "price": r[1], "currency": r[2], "type": r[3], "slot": r[4],
-                "desc": r[5], "stats": fixed_stats, "effect": json.loads(r[7]) if r[7] else {},
+                "desc": r[5],
+                "stats": _normalize_bonus_map(raw_stats),
+                "effect": _normalize_bonus_map(json.loads(r[7]) if r[7] else {}),
                 "is_selling": r[8],
                 "condition": json.loads(r[9]) if r[9] else {},
                 "max_hold": r[10] if r[10] is not None else 0,
@@ -253,6 +295,9 @@ def db_create_user(user_id, name):
     row = DB.query("SELECT value FROM system_vars WHERE key='uidCounter'")
     new_uid = 10000
     if row: new_uid = int(row[0][0])
+    max_uid_row = DB.query("SELECT MAX(uid) FROM users")
+    if max_uid_row and max_uid_row[0][0] is not None:
+        new_uid = max(new_uid, int(max_uid_row[0][0]) + 1)
 
     # 2. 生成基础随机属性
     min_stat = Settings.get("init_stat_min", 1)
@@ -305,10 +350,12 @@ def db_create_user(user_id, name):
     }
 
     # 6. 写入数据库
-    DB.execute("INSERT INTO users (id, uid, name, currency, profile, limits) VALUES (?,?,?,?,?,?)",
-               (str(user_id), new_uid, name, json.dumps(currency), json.dumps(profile), json.dumps(limits)))
+    created_id = DB.execute("INSERT INTO users (id, uid, name, currency, profile, limits) VALUES (?,?,?,?,?,?)",
+                            (str(user_id), new_uid, name, json.dumps(currency), json.dumps(profile), json.dumps(limits)))
+    if created_id is None:
+        return None
 
-    DB.execute('''
+    stats_id = DB.execute('''
         INSERT INTO user_stats (user_id, stat_face, stat_charm, stat_intel, stat_biz, stat_talk, stat_body, stat_art, stat_obed)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
@@ -316,6 +363,8 @@ def db_create_user(user_id, name):
         stats_db["stat_face"], stats_db["stat_charm"], stats_db["stat_intel"], stats_db["stat_biz"],
         stats_db["stat_talk"], stats_db["stat_body"], stats_db["stat_art"], stats_db["stat_obed"]
     ))
+    if stats_id is None:
+        print(f"[创建用户] 属性写入失败: user_id={user_id}, uid={new_uid}, name={name}")
 
     # 通用版不设置初始装备
 
@@ -502,6 +551,29 @@ def format_changes(item, count=1):
             name = Terms.get("term_reputation") if k == "reputation" else Terms.get("term_yuCoin") if k == "yuCoin" else k
             lines.append(f"{name} -> {'+' if total>=0 else ''}{total}")
     return "\n".join(lines)
+
+def apply_bonus_map(user, bonus_map, count=1):
+    """应用物品加成：支持属性、主货币、副货币，键名已在 load_items 中规范化。"""
+    applied = []
+    NAME_YU = Terms.get("term_yuCoin")
+    NAME_REP = Terms.get("term_reputation")
+
+    for key, value in (bonus_map or {}).items():
+        if not isinstance(value, (int, float)):
+            continue
+        amount = value * count
+
+        if key in [NAME_YU, "yuCoin", "虞元", "金币"]:
+            user["currency"]["yuCoin"] = user["currency"].get("yuCoin", 0) + amount
+            applied.append(f"{NAME_YU}+{amount}")
+        elif key in [NAME_REP, "reputation", "名誉"]:
+            user["currency"]["reputation"] = user["currency"].get("reputation", 0) + amount
+            applied.append(f"{NAME_REP}+{amount}")
+        elif get_stat_key(key):
+            safe_add_stat(user, key, amount)
+            applied.append(f"{key}+{amount}")
+
+    return applied
 
 # ================= 🚀 标准结构 =================
 
@@ -816,6 +888,9 @@ def process_message(plugin_event, Proc, is_private=False):
         name = args[1]
         if db_find_user_by_name(name): send_reply("❌ 该姓名已被登记。"); return
         user = db_create_user(sender_id, name)
+        if not user:
+            send_reply("❌ 档案创建失败：数据库写入未成功，请查看控制台 [DB Error] 日志。")
+            return
         # 只显示可见的属性字段（过滤掉 is_hidden=0 的字段）
         stats_txt = "\n".join([
             f"{Terms.get(k)}：{user['stats'][Terms.get(k)]}"
@@ -1146,10 +1221,8 @@ def process_message(plugin_event, Proc, is_private=False):
         elif item["type"] == "consumable":
             user["bag"][item_name] -= count
             if user["bag"][item_name] <= 0: del user["bag"][item_name]
-            if "effect" in item:
-                for k, v in item["effect"].items():
-                    if k=="reputation": user["currency"]["reputation"] += v*count
-                    elif get_stat_key(k): safe_add_stat(user, k, v*count)
+            apply_bonus_map(user, item.get("stats", {}), count)
+            apply_bonus_map(user, item.get("effect", {}), count)
             db_save_user(user); send_reply(f"✅ 已使用：{item_name}*{count}\n{format_changes(item, count)}"); return
         
         elif item["type"] == "equip": send_reply("❌ 这是装备，请使用【换上 装备名】指令。"); return

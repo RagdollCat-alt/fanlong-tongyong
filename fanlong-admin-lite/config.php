@@ -135,6 +135,24 @@ function migrateDB() {
             created_at TEXT DEFAULT (datetime('now','localtime'))
         )");
 
+        // items: 确保高级商品字段存在，避免后台先启动时保存扩展参数失败
+        $icols = array_column($db->query("PRAGMA table_info(items)")->fetchAll(PDO::FETCH_ASSOC), 'name');
+        if (!empty($icols)) {
+            $item_columns = [
+                'condition'       => 'TEXT',
+                'max_hold'        => 'INTEGER DEFAULT 0',
+                'compound_recipe' => 'TEXT',
+                'sub_type'        => 'TEXT',
+                'param'           => 'TEXT',
+                'stock_qty'       => 'INTEGER DEFAULT -1',
+            ];
+            foreach ($item_columns as $col => $type) {
+                if (!in_array($col, $icols)) {
+                    $db->exec("ALTER TABLE items ADD COLUMN {$col} {$type}");
+                }
+            }
+        }
+
         // game_terms: 确保 category 和 is_hidden 字段存在
         $tcols = array_column($db->query("PRAGMA table_info(game_terms)")->fetchAll(PDO::FETCH_ASSOC), 'name');
         if (!in_array('category', $tcols)) {

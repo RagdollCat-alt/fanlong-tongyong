@@ -39,6 +39,129 @@ if (empty($currency_options)) {
     $currency_options = ['yuCoin' => t('term_yuCoin', '货币'), 'reputation' => t('term_reputation', '名誉')];
 }
 
+function normalizeItemStatsJson($json) {
+    $arr = safeJsonDecode($json);
+    if (empty($arr) && trim($json) !== '{}') return '{}';
+
+    $stat_labels = [
+        'stat_face' => t('stat_face', '颜值'),
+        'stat_charm' => t('stat_charm', '魅力'),
+        'stat_intel' => t('stat_intel', '智力'),
+        'stat_biz' => t('stat_biz', '商业'),
+        'stat_talk' => t('stat_talk', '口才'),
+        'stat_body' => t('stat_body', '体能'),
+        'stat_art' => t('stat_art', '才艺'),
+        'stat_obed' => t('stat_obed', '服从_威慑'),
+    ];
+    $default_labels = [
+        'stat_face' => '颜值', 'stat_charm' => '魅力', 'stat_intel' => '智力', 'stat_biz' => '商业',
+        'stat_talk' => '口才', 'stat_body' => '体能', 'stat_art' => '才艺', 'stat_obed' => '服从_威慑',
+    ];
+    $stat_aliases = ['全部属性', '全属性', '所有属性', 'all_stats', 'all_stat', 'all_attrs', 'all_attr'];
+    $currency_aliases = ['全部货币', '全货币', '所有货币', 'all_currency', 'all_currencies', 'all_money'];
+    $currency_map = [
+        'yuCoin' => t('term_yuCoin', '虞元'), 'yuyuan' => t('term_yuCoin', '虞元'),
+        '虞元' => t('term_yuCoin', '虞元'), '金币' => t('term_yuCoin', '虞元'),
+        t('term_yuCoin', '虞元') => t('term_yuCoin', '虞元'),
+        'reputation' => t('term_reputation', '名誉'), '名誉' => t('term_reputation', '名誉'),
+        t('term_reputation', '名誉') => t('term_reputation', '名誉'),
+    ];
+    $key_map = [];
+    foreach ($stat_labels as $internal => $label) {
+        $key_map[$internal] = $label;
+        $key_map[$label] = $label;
+        $key_map[$default_labels[$internal]] = $label;
+    }
+
+    $normalized = [];
+    foreach ($arr as $key => $value) {
+        if (in_array($key, $stat_aliases, true)) {
+            foreach ($stat_labels as $label) {
+                $normalized[$label] = (isset($normalized[$label]) && is_numeric($normalized[$label]) && is_numeric($value))
+                    ? $normalized[$label] + ($value + 0)
+                    : $value;
+            }
+            continue;
+        }
+        if (in_array($key, $currency_aliases, true)) {
+            foreach ([t('term_yuCoin', '虞元'), t('term_reputation', '名誉')] as $label) {
+                $normalized[$label] = (isset($normalized[$label]) && is_numeric($normalized[$label]) && is_numeric($value))
+                    ? $normalized[$label] + ($value + 0)
+                    : $value;
+            }
+            continue;
+        }
+        $target = $key_map[$key] ?? $key;
+        $target = $currency_map[$target] ?? $target;
+        if (isset($normalized[$target]) && is_numeric($normalized[$target]) && is_numeric($value)) {
+            $normalized[$target] += $value + 0;
+        } else {
+            $normalized[$target] = $value;
+        }
+    }
+    return json_encode($normalized, JSON_UNESCAPED_UNICODE);
+}
+
+function isValidJsonText($json) {
+    $json = trim($json ?? '');
+    if ($json === '') return false;
+
+    $candidates = [
+        $json,
+        htmlspecialchars_decode($json, ENT_QUOTES),
+        str_replace(['&quot;', '&#34;'], '"', $json),
+    ];
+
+    foreach ($candidates as $candidate) {
+        json_decode($candidate, true);
+        if (json_last_error() === JSON_ERROR_NONE) return true;
+    }
+    return false;
+}
+
+function normalizeItemParamJson($json) {
+    $json = trim($json ?? '');
+    if ($json === '') return '{}';
+
+    $candidates = [
+        $json,
+        htmlspecialchars_decode($json, ENT_QUOTES),
+        str_replace(['&quot;', '&#34;'], '"', $json),
+    ];
+
+    foreach ($candidates as $candidate) {
+        $decoded = json_decode($candidate, true);
+        if (json_last_error() === JSON_ERROR_NONE) {
+            if (is_array($decoded)) return json_encode($decoded, JSON_UNESCAPED_UNICODE);
+            if (is_string($decoded) && trim($decoded) !== '') return json_encode([trim($decoded)], JSON_UNESCAPED_UNICODE);
+            return '{}';
+        }
+    }
+
+    $parts = preg_split('/[\r\n,，、;；]+/u', $json);
+    $parts = array_values(array_filter(array_map('trim', $parts), function($v) {
+        return $v !== '';
+    }));
+
+    return $parts ? json_encode($parts, JSON_UNESCAPED_UNICODE) : '{}';
+}
+
+function formatItemBonusHtml($data) {
+    if (!is_array($data)) return '';
+
+    $html = '';
+    foreach ($data as $key => $value) {
+        if (!is_numeric($value) || floatval($value) == 0) continue;
+
+        $amount = floatval($value);
+        $num = (floor($amount) == $amount) ? strval(intval($amount)) : rtrim(rtrim(number_format($amount, 2, '.', ''), '0'), '.');
+        $label = htmlspecialchars(t($key, $key));
+        $html .= $label . '<span class="text-' . ($amount > 0 ? 'success' : 'danger') . '">' . ($amount > 0 ? '+' : '') . $num . '</span> ';
+    }
+
+    return $html;
+}
+
 // ===== POST =====
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $pa = $_POST['action'] ?? '';
@@ -62,10 +185,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $max_h    = intval($_POST['max_hold']        ?? 0);
 
         // 验证 JSON 字段
-        if (safeJsonDecode($stats) === [] && trim($stats) !== '{}') $stats = '{}';
-        if (safeJsonDecode($effect) === [] && trim($effect) !== '{}') $effect = '{}';
-        if (safeJsonDecode($recipe) === [] && trim($recipe) !== '{}') $recipe = '{}';
-        if (safeJsonDecode($param)  === [] && trim($param)  !== '{}') $param  = '{}';
+        if (!isValidJsonText($stats))  $stats = '{}';
+        if (!isValidJsonText($effect)) $effect = '{}';
+        if (!isValidJsonText($recipe)) $recipe = '{}';
+        $param = normalizeItemParamJson($param);
+        $stats = normalizeItemStatsJson($stats);
+        $effect = normalizeItemStatsJson($effect);
 
         if (empty($n)) { $msg='物品名称不能为空'; $msg_type='danger'; }
         else {
@@ -200,9 +325,20 @@ require_once 'header.php';
         <tbody>
         <?php foreach($items as $it):
           $stats_arr = safeJsonDecode($it['stats']??'{}');
-          $stats_str = '';
-          foreach($stats_arr as $sk=>$sv) {
-              if(intval($sv)!=0) $stats_str .= t($sk,$sk).'<span class="text-'.($sv>0?'success':'danger').'">'.($sv>0?'+':'').intval($sv).'</span> ';
+          $effect_arr = safeJsonDecode($it['effect']??'{}');
+          $param_arr = safeJsonDecode($it['param']??'{}');
+          $bonus_str = '';
+          if (($it['sub_type']??'') === 'optional_pack') {
+              $amount = is_numeric($effect_arr['amount'] ?? null) ? floatval($effect_arr['amount']) : 0;
+              if ($amount != 0 && is_array($param_arr) && !empty($param_arr)) {
+                  $num = (floor($amount) == $amount) ? strval(intval($amount)) : rtrim(rtrim(number_format($amount, 2, '.', ''), '0'), '.');
+                  $labels = array_map(function($v) { return htmlspecialchars(t($v, $v)); }, $param_arr);
+                  $bonus_str = '自选：' . implode(' / ', $labels) . '<span class="text-'.($amount>0?'success':'danger').'">'.($amount>0?'+':'').$num.'</span>';
+              }
+          } elseif (($it['type']??'') === 'consumable') {
+              $bonus_str = formatItemBonusHtml($effect_arr);
+          } else {
+              $bonus_str = formatItemBonusHtml($stats_arr);
           }
         ?>
         <tr>
@@ -231,8 +367,8 @@ require_once 'header.php';
             <?php endif; ?>
           </td>
           <td>
-            <?php if($stats_str): ?>
-            <div class="small"><?php echo $stats_str; ?></div>
+            <?php if($bonus_str): ?>
+            <div class="small"><?php echo $bonus_str; ?></div>
             <?php else: ?><span class="text-muted">—</span><?php endif; ?>
           </td>
           <td>
@@ -427,7 +563,7 @@ require_once 'header.php';
           <label class="form-label fw-semibold small">扩展参数 <span class="text-muted">(JSON)</span></label>
           <textarea class="form-control font-monospace" name="param" rows="2"
                     placeholder="{}"><?php echo htmlspecialchars($edit_item['param']??'{}'); ?></textarea>
-          <div class="form-text">子类型选「自选礼包」时专用，数组格式，如 <code>["<?php echo t('stat_face','颜值'); ?>","<?php echo t('stat_charm','魅力'); ?>","<?php echo t('stat_intel','智谋'); ?>"]</code>；玩家使用时从中选一属性加点，加点数量由「特殊效果」的 amount 值决定</div>
+          <div class="form-text">子类型选「自选礼包」时专用。可填 JSON 数组，如 <code>["<?php echo t('stat_face','颜值'); ?>","<?php echo t('stat_charm','魅力'); ?>"]</code>；也可直接填 <code><?php echo t('stat_face','颜值'); ?>,<?php echo t('stat_charm','魅力'); ?></code>。玩家使用时从中选一属性加点，加点数量由「特殊效果」的 amount 值决定</div>
         </div>
       </div>
 
