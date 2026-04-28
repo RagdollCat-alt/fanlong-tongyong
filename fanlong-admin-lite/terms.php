@@ -396,8 +396,8 @@ function showToast(msg, type) {
     document.body.appendChild(container);
   }
   const el = document.createElement('div');
-  el.className = `alert alert-${type} border-0 rounded-3 shadow mb-0 py-2 px-3 small`;
-  el.style.cssText = 'min-width:220px;animation:fadeIn .2s';
+  const bg = type === 'success' ? '#16a34a' : '#dc2626';
+  el.style.cssText = `min-width:220px;padding:8px 14px;border-radius:8px;color:#fff;background:${bg};box-shadow:0 2px 8px rgba(0,0,0,.3);font-size:.85rem`;
   el.textContent = msg;
   container.appendChild(el);
   setTimeout(() => el.remove(), 3000);
