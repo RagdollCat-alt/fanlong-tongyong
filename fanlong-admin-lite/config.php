@@ -163,10 +163,13 @@ function migrateDB() {
             $stmt->execute($cfg);
         }
 
-        // game_terms: 确保 category 和 is_hidden 字段存在
+        // game_terms: 确保 category / is_hidden / sort_order 字段存在
         $tcols = array_column($db->query("PRAGMA table_info(game_terms)")->fetchAll(PDO::FETCH_ASSOC), 'name');
         if (!in_array('category', $tcols)) {
             $db->exec("ALTER TABLE game_terms ADD COLUMN category TEXT DEFAULT 'other'");
+        }
+        if (!in_array('sort_order', $tcols)) {
+            $db->exec("ALTER TABLE game_terms ADD COLUMN sort_order INTEGER DEFAULT 0");
         }
         // 根据键名前缀自动修正分类（仅针对仍为 other 的词条，幂等安全）
         $db->exec("UPDATE game_terms SET category='属性配置' WHERE key LIKE 'stat_%'    AND category='other'");
