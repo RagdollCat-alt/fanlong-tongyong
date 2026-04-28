@@ -8,7 +8,8 @@ $msg=''; $msg_type='';
 
 // 批量操作
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $pa = $_POST['action'] ?? '';
+    $pa   = $_POST['action'] ?? '';
+    $ajax = ($_POST['ajax'] ?? '') === '1';
 
     if ($pa === 'save') {
         $is_add   = empty($_POST['orig_key']);
@@ -20,9 +21,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // 复选框"对玩家隐藏"勾选 → 存 0；不勾 → 存 1
         $hidden     = isset($_POST['is_hidden']) ? 0 : 1;
         $sort_order = intval($_POST['sort_order'] ?? 0);
-        if (empty($key)) { $msg='键名不能为空'; $msg_type='danger'; }
-        elseif ($is_add && strpos($key, 'profile_') !== 0) { $msg='新增术语键名必须以 profile_ 开头'; $msg_type='danger'; }
-        else {
+        $err = '';
+        if (empty($key)) $err = '键名不能为空';
+        elseif ($is_add && strpos($key, 'profile_') !== 0) $err = '新增术语键名必须以 profile_ 开头';
+        if ($err) {
+            if ($ajax) { header('Content-Type: application/json'); echo json_encode(['ok'=>false,'msg'=>$err]); exit(); }
+            $msg=$err; $msg_type='danger';
+        } else {
             if ($is_add) $category = '档案配置';
             try {
                 $old = null;
@@ -75,9 +80,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 logAction('game_terms', $is_add?'create':'update', $key, $old, ['text'=>$text,'category'=>$category,'is_hidden'=>$hidden]);
+                if ($ajax) {
+                    $cat_labels = ['属性配置'=>'八维属性','服饰配置'=>'装备槽位','档案配置'=>'角色档案','金钱配置'=>'货币名称','指令配置'=>'游戏指令','系统配置'=>'系统参数','other'=>'其他'];
+                    header('Content-Type: application/json');
+                    echo json_encode(['ok'=>true,'msg'=>'术语已保存'.$sync_msg,'is_add'=>$is_add,'key'=>$key,'text'=>$text,'category'=>$category,'category_label'=>($cat_labels[$category]??$category),'is_hidden'=>$hidden,'sort_order'=>$sort_order]);
+                    exit();
+                }
                 setFlash('success', '术语已保存' . $sync_msg . '。修改生效后请向机器人发送「重载配置」刷新缓存');
                 header('Location: terms.php'); exit();
-            } catch(Exception $e){ $msg='保存失败：'.$e->getMessage(); $msg_type='danger'; }
+            } catch(Exception $e){
+                if ($ajax) { header('Content-Type: application/json'); echo json_encode(['ok'=>false,'msg'=>'保存失败：'.$e->getMessage()]); exit(); }
+                $msg='保存失败：'.$e->getMessage(); $msg_type='danger';
+            }
         }
     }
 
@@ -180,7 +194,7 @@ require_once 'header.php';
       </tr></thead>
       <tbody>
       <?php foreach($terms as $term): ?>
-      <tr>
+      <tr data-key="<?php echo htmlspecialchars($term['key'],ENT_QUOTES); ?>">
         <td class="ps-4"><code class="small"><?php echo htmlspecialchars($term['key']); ?></code></td>
         <td class="fw-semibold"><?php echo htmlspecialchars($term['text']); ?></td>
         <td>
@@ -228,8 +242,9 @@ require_once 'header.php';
         <h5 class="modal-title fw-bold" id="termModalTitle">新增术语</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      <form method="POST">
+      <form id="termForm" method="POST">
         <input type="hidden" name="action" value="save">
+        <input type="hidden" name="ajax" value="1">
         <input type="hidden" name="orig_key" id="origKey">
         <div class="modal-body">
           <div class="mb-3">
@@ -268,7 +283,7 @@ require_once 'header.php';
         </div>
         <div class="modal-footer border-0">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
-          <button type="submit" class="btn btn-primary px-4">保存</button>
+          <button type="button" id="termSaveBtn" class="btn btn-primary px-4">保存</button>
         </div>
       </form>
     </div>
@@ -325,6 +340,68 @@ function editTerm(key,text,cat,hidden,sortOrder){
   new bootstrap.Modal(document.getElementById('termModal')).show();
 }
 
+
+// AJAX 保存
+document.getElementById('termSaveBtn').addEventListener('click', async function() {
+  const btn = this;
+  btn.disabled = true; btn.textContent = '保存中…';
+  const form = document.getElementById('termForm');
+  const data = new FormData(form);
+  try {
+    const resp = await fetch('terms.php', {method:'POST', body:data});
+    const json = await resp.json();
+    if (json.ok) {
+      bootstrap.Modal.getInstance(document.getElementById('termModal')).hide();
+      showToast(json.msg, 'success');
+      if (json.is_add) {
+        // 新增：整行追加
+        const tbody = document.querySelector('.datatable tbody');
+        const showSort = ['档案配置','属性配置','服饰配置'].includes(json.category);
+        const hiddenBadge = json.is_hidden ? '<span class="text-success small"><i class="fas fa-eye me-1"></i>可见</span>' : '<span class="badge bg-warning text-dark"><i class="fas fa-eye-slash me-1"></i>隐藏</span>';
+        const tr = document.createElement('tr');
+        tr.dataset.key = json.key;
+        tr.innerHTML = `<td class="ps-4"><code class="small">${json.key}</code></td><td class="fw-semibold">${json.text}</td><td><span class="badge bg-body-secondary text-body border small">${json.category_label}</span></td><td>${hiddenBadge}</td><td class="text-center text-muted small">${showSort ? json.sort_order : '—'}</td><td class="pe-4"><div class="d-flex gap-1"><button class="btn btn-sm btn-outline-primary py-0 px-2" onclick="editTerm('${json.key}','${json.text.replace(/'/g,"\\'")}','${json.category}',${json.is_hidden},${json.sort_order})">编辑</button><button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="confirmDeleteTerm('${json.key}')">删除</button></div></td>`;
+        tbody.appendChild(tr);
+      } else {
+        // 编辑：更新现有行
+        const tr = document.querySelector(`tr[data-key="${json.key}"]`);
+        if (tr) {
+          const showSort = ['档案配置','属性配置','服饰配置'].includes(json.category);
+          const hiddenBadge = json.is_hidden ? '<span class="text-success small"><i class="fas fa-eye me-1"></i>可见</span>' : '<span class="badge bg-warning text-dark"><i class="fas fa-eye-slash me-1"></i>隐藏</span>';
+          tr.cells[1].innerHTML = `<span class="fw-semibold">${json.text}</span>`;
+          tr.cells[2].innerHTML = `<span class="badge bg-body-secondary text-body border small">${json.category_label}</span>`;
+          tr.cells[3].innerHTML = hiddenBadge;
+          tr.cells[4].textContent = showSort ? json.sort_order : '—';
+          tr.cells[5].querySelector('button').onclick = function(){ editTerm(json.key, json.text, json.category, json.is_hidden, json.sort_order); };
+          tr.style.transition = 'background 0.4s';
+          tr.style.background = '#d1fae5';
+          setTimeout(() => tr.style.background = '', 1200);
+        }
+      }
+    } else {
+      showToast(json.msg, 'danger');
+    }
+  } catch(e) {
+    showToast('网络错误，请重试', 'danger');
+  }
+  btn.disabled = false; btn.textContent = '保存';
+});
+
+function showToast(msg, type) {
+  let container = document.getElementById('toastContainer');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toastContainer';
+    container.style.cssText = 'position:fixed;top:1rem;right:1rem;z-index:9999;display:flex;flex-direction:column;gap:8px';
+    document.body.appendChild(container);
+  }
+  const el = document.createElement('div');
+  el.className = `alert alert-${type} border-0 rounded-3 shadow mb-0 py-2 px-3 small`;
+  el.style.cssText = 'min-width:220px;animation:fadeIn .2s';
+  el.textContent = msg;
+  container.appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
 
 function confirmDeleteTerm(key) {
   document.getElementById('deleteTermModalKey').textContent = '「' + key + '」';
