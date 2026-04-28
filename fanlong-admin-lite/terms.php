@@ -352,7 +352,7 @@ document.getElementById('termSaveBtn').addEventListener('click', async function(
     const json = await resp.json();
     if (json.ok) {
       bootstrap.Modal.getInstance(document.getElementById('termModal')).hide();
-      showToast(json.msg, 'success');
+      showTermToast(json.msg, 'success');
       if (json.is_add) {
         // 新增：整行追加
         const tbody = document.querySelector('.datatable tbody');
@@ -379,15 +379,15 @@ document.getElementById('termSaveBtn').addEventListener('click', async function(
         }
       }
     } else {
-      showToast(json.msg, 'danger');
+      showTermToast(json.msg, 'danger');
     }
   } catch(e) {
-    showToast('网络错误，请重试', 'danger');
+    showTermToast('网络错误，请重试', 'danger');
   }
   btn.disabled = false; btn.textContent = '保存';
 });
 
-function showToast(msg, type) {
+function showTermToast(msg, type) {
   let container = document.getElementById('toastContainer');
   if (!container) {
     container = document.createElement('div');
